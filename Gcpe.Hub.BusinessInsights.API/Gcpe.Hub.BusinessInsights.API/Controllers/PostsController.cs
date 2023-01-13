@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace Gcpe.Hub.BusinessInsights.API.Controllers
 {
-    [Authorize]
     [ApiController]
     [Route("api/posts")]
     public class PostsController : ControllerBase
@@ -84,21 +83,33 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
         /// </summary>
         /// <param name="startDate"></param>
         /// <param name="endDate"></param>
-        /// <returns></returns>
+        [Authorize]
         [HttpGet("sync")]
         public async Task<ActionResult> SyncCustomRange([FromQuery] string startDate = "", [FromQuery] string endDate = "")
         {
-            try 
+            try
             {
                 await _dataSynchronizationService.SyncData(startDate, endDate);
             }
-            catch (Exception ex) 
+            catch (Exception ex)
             {
                 _logger.LogError(ex.InnerException.Message);
                 return StatusCode(500, "Something went wrong.");
             }
 
             return Ok();
+        }
+
+        [HttpGet("translations/history")]
+        public async Task<ActionResult<TranslationReportDto>> GetHistory()
+        {
+            var nrItems = await _localDataRepository.GetAllNewsReleaseItems();
+
+            if (!nrItems.Any()) return BadRequest("No releases available for date range.");
+
+            var history = nrItems.Select(nr => nr.PublishDateTime).Select(d => new { d.Month, d.Year }).Distinct().ToList();
+
+            return Ok(history);
         }
     }
 }

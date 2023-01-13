@@ -35,6 +35,11 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             _dbContext.TranslationItems.Add(translationItem);
         }
 
+        public async Task<IEnumerable<NewsReleaseItem>> GetAllNewsReleaseItems()
+        {
+            return await _dbContext.NewsReleaseItems.ToListAsync();
+        }
+
         public async Task<IEnumerable<NewsReleaseItem>> GetNewsReleaseItemsInDateRangeAsync(string startDate, string endDate)
         {
             return await _dbContext.NewsReleaseItems

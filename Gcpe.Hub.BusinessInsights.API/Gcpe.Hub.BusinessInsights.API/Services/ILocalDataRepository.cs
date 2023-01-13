@@ -10,6 +10,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
     {
         void AddNewsReleaseEntityAsync(NewsReleaseEntity newsReleaseEntity);
         void AddTranslationItemAsync(TranslationItem translationItem);
+        Task<IEnumerable<NewsReleaseItem>> GetAllNewsReleaseItems();
         Task<IEnumerable<NewsReleaseItem>> GetNewsReleasesForPreviousMonthAsync();
         Task<IEnumerable<TranslationItem>> GetTranslationsForPreviousMonthAsync();
         Task<IEnumerable<Url>> GetUrlsForPreviousMonthAsync();
