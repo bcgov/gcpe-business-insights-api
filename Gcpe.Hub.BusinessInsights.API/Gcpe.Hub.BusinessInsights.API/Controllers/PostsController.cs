@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Authorization;
+using System.Globalization;
 
 namespace Gcpe.Hub.BusinessInsights.API.Controllers
 {
@@ -109,7 +110,13 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
 
             var history = nrItems.Select(nr => nr.PublishDateTime).Select(d => new { d.Month, d.Year }).Distinct().ToList();
 
-            return Ok(history);
+            var dates = history.Select(d => new { 
+                month = new DateTime(d.Year,d.Month, 1).AddMonths(-1).ToString("MMMM", CultureInfo.InvariantCulture),
+                year = d.Year,
+                start = new DateTime(d.Year, d.Month, 1).AddMonths(-1).ToString("yyyy-MM-dd"),
+                end = new DateTime(d.Year, d.Month, 1).ToString("yyyy-MM-dd") });
+
+            return Ok(dates);
         }
     }
 }
