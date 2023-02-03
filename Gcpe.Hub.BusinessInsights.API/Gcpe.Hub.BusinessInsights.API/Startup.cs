@@ -49,6 +49,7 @@ namespace Gcpe.Hub.BusinessInsights.API
             services.AddHostedService<TranslationProcessingWorker>();
             services.AddScoped<IScopedProcessingService, ScopedProcessingService>();
             services.AddScoped<IDataSynchronizationService, DataSynchronizationService>();
+            services.AddScoped<IAzureDevOpsService, AzureDevOpsService>();
             services.AddScoped<IReportGenerationService, ReportGenerationService>();
 
             services.AddCors(o => o.AddPolicy("MyPolicy", builder =>
