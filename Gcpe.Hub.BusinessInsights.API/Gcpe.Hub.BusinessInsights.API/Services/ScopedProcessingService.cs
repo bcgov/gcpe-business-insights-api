@@ -1,11 +1,4 @@
-﻿using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
-using Gcpe.Hub.BusinessInsights.API.Entities;
-using Gcpe.Hub.BusinessInsights.API.Models;
-using HtmlAgilityPack;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using ScrapySharp.Extensions;
+﻿using Microsoft.Extensions.Logging;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,6 +24,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             {
                 try
                 {
+                    _logger.LogInformation("Starting data synchronization service, running every 20 seconds...");
                     await _dataSynchronizationService.SyncData();
                 }
                 catch (Exception ex)
