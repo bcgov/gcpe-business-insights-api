@@ -43,6 +43,9 @@ namespace Gcpe.Hub.BusinessInsights.API
             });
 
             services.AddHealthChecks()
+                .AddDbContextCheck<LocalDbContext>()
+                .AddDbContextCheck<HubBusinessInsightsDbContext>()
+                .AddDbContextCheck<HubDbContext>()
                 .AddSqlServer(
                     connectionString: localDbConnectionString,
                     name: "localDbConnection"
