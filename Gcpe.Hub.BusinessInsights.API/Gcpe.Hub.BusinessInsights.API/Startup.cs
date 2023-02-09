@@ -1,6 +1,7 @@
 using Gcpe.Hub.BusinessInsights.API.DbContexts;
 using Gcpe.Hub.BusinessInsights.API.Services;
 using Gcpe.Hub.Data.Entity;
+using Hellang.Middleware.ProblemDetails;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -33,6 +34,11 @@ namespace Gcpe.Hub.BusinessInsights.API
         {
             var localDbConnectionString = Configuration["ConnectionStrings:DefaultDbContext"];
             var hubDbConnectionString = Configuration["ConnectionStrings:HubDbContext"];
+
+            services.AddProblemDetails(opts => 
+            {
+                opts.IncludeExceptionDetails = (ctx, ex) => false;    
+            });
 
             services.AddDbContext<HubDbContext>(options => options.UseSqlServer(hubDbConnectionString));
             services.AddDbContext<HubBusinessInsightsDbContext>(options => options.UseSqlServer(hubDbConnectionString));
@@ -96,6 +102,8 @@ namespace Gcpe.Hub.BusinessInsights.API
                 app.UseSwagger();
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Gcpe.Hub.BusinessInsights.API v1"));
             }
+
+            app.UseProblemDetails();
 
             app.UseCors("MyPolicy");
 
