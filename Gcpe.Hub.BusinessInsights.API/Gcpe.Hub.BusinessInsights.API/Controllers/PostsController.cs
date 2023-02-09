@@ -84,7 +84,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
         /// </summary>
         /// <param name="startDate"></param>
         /// <param name="endDate"></param>
-        [Authorize]
+        // [Authorize]
         [HttpGet("sync")]
         public async Task<ActionResult> SyncCustomRange([FromQuery] string startDate = "", [FromQuery] string endDate = "")
         {

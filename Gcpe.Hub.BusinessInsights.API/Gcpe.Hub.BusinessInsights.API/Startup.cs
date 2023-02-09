@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Identity.Web;
@@ -30,13 +31,26 @@ namespace Gcpe.Hub.BusinessInsights.API
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<HubDbContext>(options => options.UseSqlServer(Configuration["ConnectionStrings:HubDbContext"]));
-            services.AddDbContext<HubBusinessInsightsDbContext>(options => options.UseSqlServer(Configuration["ConnectionStrings:HubDbContext"]));
+            var localDbConnectionString = Configuration["ConnectionStrings:DefaultDbContext"];
+            var hubDbConnectionString = Configuration["ConnectionStrings:HubDbContext"];
+
+            services.AddDbContext<HubDbContext>(options => options.UseSqlServer(hubDbConnectionString));
+            services.AddDbContext<HubBusinessInsightsDbContext>(options => options.UseSqlServer(hubDbConnectionString));
             services.AddDbContext<LocalDbContext>(options =>
             {
-                var connectionString = Configuration["ConnectionStrings:DefaultDbContext"];
-                options.UseSqlServer(connectionString);
+                options.UseSqlServer(localDbConnectionString);
+                options.EnableSensitiveDataLogging(false);
             });
+
+            services.AddHealthChecks()
+                .AddSqlServer(
+                    connectionString: localDbConnectionString,
+                    name: "localDbConnection"
+                )
+                .AddSqlServer(
+                    connectionString: hubDbConnectionString,
+                    name: "hubDbConnection"
+            );
 
             services.AddMicrosoftIdentityWebApiAuthentication(Configuration);
 
@@ -49,6 +63,7 @@ namespace Gcpe.Hub.BusinessInsights.API
             services.AddHostedService<TranslationProcessingWorker>();
             services.AddScoped<IScopedProcessingService, ScopedProcessingService>();
             services.AddScoped<IDataSynchronizationService, DataSynchronizationService>();
+            services.AddScoped<IAzureDevOpsService, AzureDevOpsService>();
             services.AddScoped<IReportGenerationService, ReportGenerationService>();
 
             services.AddCors(o => o.AddPolicy("MyPolicy", builder =>
@@ -92,6 +107,7 @@ namespace Gcpe.Hub.BusinessInsights.API
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+                endpoints.MapHealthChecks("/health").AllowAnonymous();
             });
         }
     }

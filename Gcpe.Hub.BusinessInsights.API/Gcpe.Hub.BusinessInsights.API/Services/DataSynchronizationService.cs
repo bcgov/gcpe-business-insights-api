@@ -10,6 +10,8 @@ using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs;
 using Gcpe.Hub.BusinessInsights.API.Entities;
 using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace Gcpe.Hub.BusinessInsights.API.Services
 {
@@ -17,26 +19,34 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
     {
         private readonly IHubBusinessInsightsRepository _hubBusinessInsightsRepository;
         private readonly ILocalDataRepository _localDataRepository;
+        private readonly ILogger<DataSynchronizationService> _logger;
         private readonly IConfiguration _config;
         public DataSynchronizationService(
             IHubBusinessInsightsRepository hubBusinessInsightsRepository,
             ILocalDataRepository localDataRepository,
+            ILogger<DataSynchronizationService> logger,
             IConfiguration config)
         {
             _hubBusinessInsightsRepository = hubBusinessInsightsRepository ?? throw new ArgumentNullException(nameof(hubBusinessInsightsRepository));
             _localDataRepository = localDataRepository;
             _config = config;
+            _logger = logger;
         }
 
         public async Task SyncData()
         {
+            var timer = new Stopwatch();
+            _logger.LogInformation("Starting data sync...");
             var newsReleaseEntities = await _hubBusinessInsightsRepository.GetNewsReleasesAsync();
             var localNewsReleaseEntities = await _localDataRepository.GetNewsReleasesForPreviousMonthAsync();
             var isLocalCacheUpToDate = newsReleaseEntities.Count() == localNewsReleaseEntities.Count();
 
+            if (isLocalCacheUpToDate) _logger.LogInformation("NR cache for previous month is up-to-date, skipping sync...");
+
             if (!isLocalCacheUpToDate)
             {
                 // clean up incomplete results and re-fetch
+                _logger.LogInformation("NR cache is out-dated for previous month, removing old entries and fetching latest NRs...");
                 if (localNewsReleaseEntities.Any())
                 {
                     var localTranslations = await _localDataRepository.GetTranslationsForPreviousMonthAsync();
@@ -49,6 +59,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                     );
                 }
 
+                _logger.LogInformation("Adding latest NRs for previous month to cache...");
                 foreach (var entity in newsReleaseEntities)
                 {
                     _localDataRepository.AddNewsReleaseEntityAsync(entity);
@@ -57,19 +68,27 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
                 var loadingTasks = new List<Task<Translation>>();
 
+                _logger.LogInformation("Checking Azure Blob to filter out NRs whose timestamp was modified outside of the previous month...");
                 foreach (var entity in newsReleaseEntities)
                 {
                     var blobs = new List<BlobItem>();
                     if (entity.ReleaseType == 3) // factsheet
                     {
-                        BlobContainerClient container = new BlobContainerClient(_config["CloudAccountConnectionString"], "translations");
-                        var resultSegment = container.GetBlobsByHierarchyAsync(prefix: $"factsheets/{entity.Key}", delimiter: "/");
-                        await foreach (BlobHierarchyItem blob in resultSegment)
+                        try
                         {
-                            blobs.Add(blob.Blob);
-                        }
+                            BlobContainerClient container = new BlobContainerClient(_config["CloudAccountConnectionString"], "translations");
+                            var resultSegment = container.GetBlobsByHierarchyAsync(prefix: $"factsheets/{entity.Key}", delimiter: "/");
+                            await foreach (BlobHierarchyItem blob in resultSegment)
+                            {
+                                blobs.Add(blob.Blob);
+                            }
 
-                        var b = blobs;
+                            var b = blobs;
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.LogError("Something went wrong communicating with the Azure Blob: " + e.InnerException.Message);
+                        }
                     }
 
                     var today = DateTime.Today;
@@ -80,11 +99,17 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                     var loadTask = GetLinks(entity.Key, entity.Ministry, entity.PublishDateTime);
                     if (!skipAddingTask) loadingTasks.Add(loadTask);
                 }
+                _logger.LogInformation("Scraping urls from news.gov.bc.ca...");
                 var translationsTasks = await Task.WhenAll(loadingTasks);
 
                 var results = translationsTasks.ToList();
+                var allTranslations = results;
+                var translationsNullKeys = results.Where(i => i?.Key != null).ToList();
+                var filtered = allTranslations.Except(translationsNullKeys);
+                _logger.LogInformation($"Filtered out scraped {filtered.Count()} translations with null keys...");
                 results = results.Where(i => i?.Key != null).ToList(); // filter out nulls
 
+                _logger.LogInformation("Finished scraping URLs, saving to cache...");
                 foreach (var result in results)
                 {
                     var newTranslation = new TranslationItem { Key = result.Key, Ministry = result.Ministry, PublishDateTime = result.PublishDateTime };
@@ -96,18 +121,23 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                     _localDataRepository.AddTranslationItemAsync(newTranslation);
                 }
                 await _localDataRepository.SaveChangesAsync();
+                _logger.LogInformation($"Completed sync between cache and news.gov.bc.ca in: {timer.ElapsedMilliseconds} milliseconds.");
             }
         }
 
         public async Task SyncData(string startDate = "", string endDate = "")
         {
+            _logger.LogInformation("Starting data sync...");
             var newsReleaseEntities = await _hubBusinessInsightsRepository.GetNewsReleasesAsync(startDate, endDate);
             var localNewsReleaseEntities = await _localDataRepository.GetNewsReleaseItemsInDateRangeAsync(startDate, endDate);
             var isLocalCacheUpToDate = newsReleaseEntities.Count() == localNewsReleaseEntities.Count();
 
+            if (isLocalCacheUpToDate) _logger.LogInformation("NR cache for date range is up-to-date, skipping sync...");
+
             if (!isLocalCacheUpToDate)
             {
                 // clean up incomplete results and re-fetch
+                _logger.LogInformation("NR cache is out-dated for date range, removing old entries and fetching latest NRs...");
                 if (localNewsReleaseEntities.Any())
                 {
                     var localTranslations = await _localDataRepository.GetTranslationsForPreviousMonthAsync();
@@ -120,6 +150,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                     );
                 }
 
+                _logger.LogInformation("Adding latest NRs for date range to cache...");
                 foreach (var entity in newsReleaseEntities)
                 {
                     _localDataRepository.AddNewsReleaseEntityAsync(entity);
@@ -128,19 +159,27 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
                 var loadingTasks = new List<Task<Translation>>();
 
+                _logger.LogInformation("Checking Azure Blob to filter out NRs whose timestamp was modified outside of date range...");
                 foreach (var entity in newsReleaseEntities)
                 {
                     var blobs = new List<BlobItem>();
                     if (entity.ReleaseType == 3) // factsheet
                     {
-                        BlobContainerClient container = new BlobContainerClient(_config["CloudAccountConnectionString"], "translations");
-                        var resultSegment = container.GetBlobsByHierarchyAsync(prefix: $"factsheets/{entity.Key}", delimiter: "/");
-                        await foreach (BlobHierarchyItem blob in resultSegment)
+                        try
                         {
-                            blobs.Add(blob.Blob);
-                        }
+                            BlobContainerClient container = new BlobContainerClient(_config["CloudAccountConnectionString"], "translations");
+                            var resultSegment = container.GetBlobsByHierarchyAsync(prefix: $"factsheets/{entity.Key}", delimiter: "/");
+                            await foreach (BlobHierarchyItem blob in resultSegment)
+                            {
+                                blobs.Add(blob.Blob);
+                            }
 
-                        var b = blobs;
+                            var b = blobs;
+                        }
+                        catch (Exception e)
+                        {
+                            _logger.LogError("Something went wrong communicating with the Azure Blob: " + e.InnerException.Message);
+                        }
                     }
 
                     var today = DateTime.Today;
@@ -151,11 +190,17 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                     var loadTask = GetLinks(entity.Key, entity.Ministry, entity.PublishDateTime);
                     if (!skipAddingTask) loadingTasks.Add(loadTask);
                 }
+                _logger.LogInformation("Scraping urls from news.gov.bc.ca...");
                 var translationsTasks = await Task.WhenAll(loadingTasks);
 
                 var results = translationsTasks.ToList();
+                var allTranslations = results;
+                var translationsNullKeys = results.Where(i => i?.Key != null).ToList();
+                var filtered = allTranslations.Except(translationsNullKeys);
+                _logger.LogInformation($"Filtered out scraped {filtered.Count()} translations with null keys...");
                 results = results.Where(i => i?.Key != null).ToList(); // filter out nulls
 
+                _logger.LogInformation("Finished scraping URLs, saving to cache...");
                 foreach (var result in results)
                 {
                     var newTranslation = new TranslationItem { Key = result.Key, Ministry = result.Ministry, PublishDateTime = result.PublishDateTime };
@@ -167,10 +212,11 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                     _localDataRepository.AddTranslationItemAsync(newTranslation);
                 }
                 await _localDataRepository.SaveChangesAsync();
+                _logger.LogInformation($"Completed sync between cache and news.gov.bc.ca for selected date range.");
             }
         }
 
-        private static async Task<Translation> GetLinks(string releaseId, string ministry, DateTimeOffset publishDateTime)
+        private async Task<Translation> GetLinks(string releaseId, string ministry, DateTimeOffset publishDateTime)
         {
             HtmlDocument doc = new HtmlDocument();
 
@@ -185,7 +231,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                _logger.LogError($"Something went wrong scraping news.gov.bc.ca: {ex.InnerException.Message}");
             }
 
             var translation = new Translation { Key = releaseId, Ministry = ministry, PublishDateTime = publishDateTime };

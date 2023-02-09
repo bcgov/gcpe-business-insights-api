@@ -7,6 +7,18 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 {
     public class ReportGenerationService : IReportGenerationService
     {
+        private readonly List<string> _allLanguages = new List<string>()
+        {
+            "Arabic", "Chinese(traditional)", "Chinese(simplified)", "Farsi", "French", "Hebrew", "Hindi", "Indonesian", "Japanese", "Korean", "Punjabi", "Somali", "Spanish", "Swahili", "Tagalog", "Ukrainian", "Urdu", "Vietnamese"
+        };
+
+        private readonly string _languages = @"Arabic|Chinese\(traditional\)|Chinese\(simplified\)|Chinese_Simplified|Chinese_Traditional|Farsi|French|Hebrew|Hindi|Indonesian|Japanese|Korean|Punjabi|Somali|Spanish|Swahili|Tagalog|Ukrainian|Urdu|Vietnamese";
+
+        public List<string> AllLanguages
+        {
+            get { return _allLanguages; }
+        }
+
         public TranslationReportDto GenerateMonthlyReport(IEnumerable<Translation> translationItems)
         {
             var pdfCount = 0;
@@ -53,7 +65,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                 {
 
                     MatchCollection mc
-                    = Regex.Matches(doc, "Arabic|Chinese|Farsi|French|Hebrew|Hindi|Indonesian|Japanese|Korean|Punjabi|Somali|Spanish|Swahili|Tagalog|Ukrainian|Urdu|Vietnamese");
+                    = Regex.Matches(doc, _languages);
 
                     foreach (Match m in mc)
                     {
@@ -89,6 +101,10 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             {
                 languageFrequencyResults.Add(new TranslationReportDto.LanguageFrequencyItem { Language = item.Key, Count = item.Value });
             }
+
+            var noLanguageResults = _allLanguages.Except(languages);
+
+            noLanguageResults.ToList().ForEach(l => languageFrequencyResults.Add(new TranslationReportDto.LanguageFrequencyItem { Language = l, Count = 0 }));
 
             var report = new TranslationReportDto
             {
@@ -149,7 +165,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                 {
 
                     MatchCollection mc
-                    = Regex.Matches(doc, "Arabic|Chinese|Farsi|French|Hebrew|Hindi|Indonesian|Japanese|Korean|Punjabi|Somali|Spanish|Swahili|Tagalog|Ukrainian|Urdu|Vietnamese");
+                    = Regex.Matches(doc, _languages);
 
                     foreach (Match m in mc)
                     {
@@ -185,6 +201,10 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             {
                 languageFrequencyResults.Add(new RollupReportDto.LanguageFrequencyItem { Language = item.Key, Count = item.Value });
             }
+
+            var noLanguageResults = _allLanguages.Except(languages);
+
+            noLanguageResults.ToList().ForEach(l => languageFrequencyResults.Add(new RollupReportDto.LanguageFrequencyItem { Language = l, Count = 0 }));
 
             var report = new RollupReportDto
             {
