@@ -4,14 +4,16 @@ using Gcpe.Hub.BusinessInsights.API.DbContexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace Gcpe.Hub.BusinessInsights.API.Migrations
 {
     [DbContext(typeof(LocalDbContext))]
-    partial class LocalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20230215221206_RemoveTranslationnItems")]
+    partial class RemoveTranslationnItems
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -60,6 +62,9 @@ namespace Gcpe.Hub.BusinessInsights.API.Migrations
 
                     b.Property<DateTimeOffset>("PublishDateTime")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("TranslationItemId")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 

@@ -1,5 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Metadata;
-using System;
+﻿using System;
 
 namespace Gcpe.Hub.BusinessInsights.API.Entities
 {

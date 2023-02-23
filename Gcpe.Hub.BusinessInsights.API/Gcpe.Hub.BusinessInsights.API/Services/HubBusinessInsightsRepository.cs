@@ -1,5 +1,6 @@
 ﻿using Gcpe.Hub.BusinessInsights.API.DbContexts;
 using Gcpe.Hub.BusinessInsights.API.Entities;
+using Gcpe.Hub.BusinessInsights.API.Guards;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -54,6 +55,17 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
         public async Task<IEnumerable<NewsReleaseEntity>> GetNewsReleasesAsync(string startDate, string endDate)
         {
+            DateGuard.ThrowIfNullOrWhitespace(startDate, endDate);
+            DateGuard.ThrowIfNullOrEmpty(endDate, startDate);
+
+            var start = DateTimeOffset.Parse(startDate);
+            var end = DateTimeOffset.Parse(endDate);
+
+            DateGuard.ThrowIfEndIsBeforeStart(start, end);
+            DateGuard.ThrowIfStartAndEndAreEqual(start, end);
+            DateGuard.ThrowIfNotFirstOfTheMonth(start, end);
+            DateGuard.ThrowIfDateRangeNotOneMonth(start, end);
+
             var newsReleaseEntities = await _dbContext.NewsReleaseEntities.FromSqlRaw(@$"
                 SELECT  * 
                 FROM (

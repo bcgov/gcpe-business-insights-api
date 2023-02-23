@@ -4,6 +4,8 @@ namespace Gcpe.Hub.BusinessInsights.API.Models
 {
     public class RollupReportDto
     {
+        public string MonthName { get; set; } = string.Empty;
+        public string Year { get; set; } = string.Empty;
         public int NewsReleaseVolumeByMonth { get; set; }
         public int TranslationsVolumeByMonth { get; set; }
         public IEnumerable<MinistryFrequencyItem> ReleasesTranslatedByMinistry { get; set; }
