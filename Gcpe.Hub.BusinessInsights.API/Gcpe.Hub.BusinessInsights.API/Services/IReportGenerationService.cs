@@ -1,12 +1,14 @@
-﻿using Gcpe.Hub.BusinessInsights.API.Models;
+﻿using Gcpe.Hub.BusinessInsights.API.Entities;
+using Gcpe.Hub.BusinessInsights.API.Models;
+using System;
 using System.Collections.Generic;
 
 namespace Gcpe.Hub.BusinessInsights.API.Services
 {
     public interface IReportGenerationService
     {
-        public TranslationReportDto GenerateMonthlyReport(IEnumerable<Translation> translationItems);
-        public RollupReportDto GenerateRollupReport(IEnumerable<Translation> translationItems);
+        public TranslationReportDto GenerateMonthlyReport(List<NewsReleaseWithUrls> items);
+        public RollupReportDto GenerateRollupReport(List<NewsReleaseWithUrls> items);
 
     }
 }

@@ -2,13 +2,11 @@ using Gcpe.Hub.BusinessInsights.API.DbContexts;
 using Gcpe.Hub.BusinessInsights.API.Services;
 using Gcpe.Hub.Data.Entity;
 using Hellang.Middleware.ProblemDetails;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Identity.Web;
@@ -45,6 +43,7 @@ namespace Gcpe.Hub.BusinessInsights.API
             services.AddDbContext<LocalDbContext>(options =>
             {
                 options.UseSqlServer(localDbConnectionString);
+                options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
                 options.EnableSensitiveDataLogging(false);
             });
 
@@ -72,7 +71,6 @@ namespace Gcpe.Hub.BusinessInsights.API
             services.AddHostedService<TranslationProcessingWorker>();
             services.AddScoped<IScopedProcessingService, ScopedProcessingService>();
             services.AddScoped<IDataSynchronizationService, DataSynchronizationService>();
-            services.AddScoped<IAzureDevOpsService, AzureDevOpsService>();
             services.AddScoped<IReportGenerationService, ReportGenerationService>();
 
             services.AddCors(o => o.AddPolicy("MyPolicy", builder =>

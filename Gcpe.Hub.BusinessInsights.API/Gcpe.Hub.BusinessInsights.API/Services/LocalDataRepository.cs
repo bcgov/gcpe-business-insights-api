@@ -1,6 +1,6 @@
 ﻿using Gcpe.Hub.BusinessInsights.API.DbContexts;
 using Gcpe.Hub.BusinessInsights.API.Entities;
-using Gcpe.Hub.BusinessInsights.API.Models;
+using Gcpe.Hub.BusinessInsights.API.Guards;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -18,7 +18,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         }
 
-        public void AddNewsReleaseEntityAsync(NewsReleaseEntity newsReleaseEntity)
+        public NewsReleaseItem AddNewsReleaseEntity(NewsReleaseEntity newsReleaseEntity)
         {
             var newsReleaseItem = new NewsReleaseItem
             {
@@ -28,11 +28,12 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                 ReleaseType = newsReleaseEntity.ReleaseType
             };
             _dbContext.NewsReleaseItems.Add(newsReleaseItem);
+            return newsReleaseItem;
         }
 
-        public void AddTranslationItemAsync(TranslationItem translationItem)
+        public void AddUrl(Url url)
         {
-            _dbContext.TranslationItems.Add(translationItem);
+            _dbContext.Urls.Add(url);
         }
 
         public async Task<IEnumerable<NewsReleaseItem>> GetAllNewsReleaseItems()
@@ -40,8 +41,19 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             return await _dbContext.NewsReleaseItems.ToListAsync();
         }
 
-        public async Task<IEnumerable<NewsReleaseItem>> GetNewsReleaseItemsInDateRangeAsync(string startDate, string endDate)
+        public async Task<IEnumerable<NewsReleaseItem>> GetNewsReleaseItemsInDateRangeAsync(string startDate = "", string endDate = "")
         {
+            DateGuard.ThrowIfNullOrWhitespace(startDate, endDate);
+            DateGuard.ThrowIfNullOrEmpty(endDate, startDate);
+
+            var start = DateTimeOffset.Parse(startDate);
+            var end = DateTimeOffset.Parse(endDate);
+
+            DateGuard.ThrowIfEndIsBeforeStart(start, end);
+            DateGuard.ThrowIfStartAndEndAreEqual(start, end);
+            DateGuard.ThrowIfNotFirstOfTheMonth(start, end);
+            DateGuard.ThrowIfDateRangeNotOneMonth(start, end);
+
             return await _dbContext.NewsReleaseItems
                 .FromSqlRaw(@$"
                     SELECT * FROM NewsReleaseItems WHERE PublishDateTime >= '{startDate}' and PublishDateTime <= '{endDate}';
@@ -63,63 +75,6 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                 ").ToListAsync();
         }
 
-        public async Task<IEnumerable<Translation>> GetTranslationItemsAsync()
-        {
-            return await _dbContext.TranslationItems
-                .Include(u => u.Urls).Select(t => new Translation { Key = t.Key, Ministry = t.Ministry, Urls = t.Urls.Select(u => u.Href).ToList() }).ToListAsync();
-        }
-
-        public async Task<IEnumerable<Translation>> GetTranslationItemsInDateRangeAsync(string startDate, string endDate)
-        {
-            if (string.IsNullOrWhiteSpace(startDate) || string.IsNullOrWhiteSpace(endDate)) 
-                throw new ArgumentException("Invalid start or end date.");
-
-            var start = DateTime.Parse(startDate);
-            var end = DateTime.Parse(endDate);
-
-            return await _dbContext.TranslationItems
-                .Where(ti => DateTimeOffset.Compare(ti.PublishDateTime, new DateTimeOffset(start, new TimeSpan(-7, 0, 0))) > 0
-                    && DateTimeOffset.Compare(ti.PublishDateTime, new DateTimeOffset(end, new TimeSpan(-7, 0, 0))) < 0 ||
-                    DateTimeOffset.Compare(ti.PublishDateTime, new DateTimeOffset(start, new TimeSpan(-8, 0, 0))) > 0
-                    && DateTimeOffset.Compare(ti.PublishDateTime, new DateTimeOffset(end, new TimeSpan(-8, 0, 0))) < 0
-                    )
-                .Include(u => u.Urls).Select(t => new Translation { Key = t.Key, Ministry = t.Ministry, Urls = t.Urls.Select(u => u.Href).ToList(), PublishDateTime = t.PublishDateTime }).ToListAsync();
-        }
-
-        public async Task<IEnumerable<Translation>> GetTranslationItemsInDateRangeAsync()
-        {
-            var today = DateTime.Today;
-            var firstOfCurrentMonth = new DateTime(today.Year, today.Month, 1);
-            var firstOfPreviousMonth = firstOfCurrentMonth.AddMonths(-1);
-
-            // just for readibility
-            var start = firstOfPreviousMonth;
-            var end = firstOfCurrentMonth;
-
-            return await _dbContext.TranslationItems
-                .Where(ti => DateTimeOffset.Compare(ti.PublishDateTime, new DateTimeOffset(start, new TimeSpan(-7, 0, 0))) > 0
-                    && DateTimeOffset.Compare(ti.PublishDateTime, new DateTimeOffset(end, new TimeSpan(-7, 0, 0))) < 0 ||
-                    DateTimeOffset.Compare(ti.PublishDateTime, new DateTimeOffset(start, new TimeSpan(-8, 0, 0))) > 0
-                    && DateTimeOffset.Compare(ti.PublishDateTime, new DateTimeOffset(end, new TimeSpan(-8, 0, 0))) < 0
-                    )
-                .Include(u => u.Urls).Select(t => new Translation { Key = t.Key, Ministry = t.Ministry, Urls = t.Urls.Select(u => u.Href).ToList(), PublishDateTime = t.PublishDateTime }).ToListAsync();
-        }
-
-        public async Task<IEnumerable<TranslationItem>> GetTranslationsForPreviousMonthAsync()
-        {
-            var today = DateTime.Today;
-            var firstOfCurrentMonth = new DateTime(today.Year, today.Month, 1);
-            var firstOfPreviousMonth = firstOfCurrentMonth.AddMonths(-1);
-
-            var startDate = firstOfPreviousMonth.ToString("yyyy-MM-dd");
-            var endDate = firstOfCurrentMonth.ToString("yyyy-MM-dd");
-
-            return await _dbContext.TranslationItems
-                .FromSqlRaw(@$"
-                    SELECT * FROM TranslationItems WHERE PublishDateTime >= '{startDate}' and PublishDateTime <= '{endDate}';
-                ").ToListAsync();
-        }
-
         public async Task<IEnumerable<Url>> GetUrlsForPreviousMonthAsync()
         {
             var today = DateTime.Today;
@@ -135,19 +90,16 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                 ").ToListAsync();
         }
 
-        public async void RemoveResultsForPreviousMonthAsync(IEnumerable<NewsReleaseItem> newsReleaseItems, IEnumerable<TranslationItem> translationItems, IEnumerable<Url> urls)
+        public async void DeleteNewsReleasesAsync(IEnumerable<NewsReleaseItem> newsReleaseItems)
         {
             var listOfNewsReleaseIds = String.Join(',', newsReleaseItems.Select(nr => $"{nr.Id}").ToList());
             var sql = $@"DELETE FROM [NewsReleaseItems] WHERE Id in ({listOfNewsReleaseIds})";
             await _dbContext.Database.ExecuteSqlRawAsync(sql);
+        }
 
-            var listOfTranslationIds = String.Join(',', translationItems.Select(tr => $"{tr.Id}").ToList());
-            sql = $@"DELETE FROM [TranslationItems] WHERE Id in ({listOfTranslationIds})";
-            await _dbContext.Database.ExecuteSqlRawAsync(sql);
-
-            var listOfUrlIds = String.Join(',', urls.Select(u => $"{u.Id}").ToList());
-            sql = $@"DELETE FROM [Urls] WHERE Id in ({listOfUrlIds})";
-            await _dbContext.Database.ExecuteSqlRawAsync(sql);
+        public async Task<IEnumerable<Url>> GetUrlsForNewsRelease(int newsReleaseItemId)
+        {
+            return await _dbContext.Urls.Where(u => u.NewsReleaseItemId == newsReleaseItemId).ToListAsync();
         }
 
         public async Task<bool> SaveChangesAsync()

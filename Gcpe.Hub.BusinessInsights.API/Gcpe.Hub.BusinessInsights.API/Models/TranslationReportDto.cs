@@ -5,6 +5,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Models
     public class TranslationReportDto
     {
         public string MonthName { get; set; }
+        public string Year { get; set; }
         public int NewsReleaseVolumeByMonth { get; set; }
         public int TranslationsVolumeByMonth { get; set; }
         public IEnumerable<Translation> Translations { get; set; }

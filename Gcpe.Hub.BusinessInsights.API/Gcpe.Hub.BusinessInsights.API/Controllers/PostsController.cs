@@ -6,8 +6,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Authorization;
 using System.Globalization;
+using Gcpe.Hub.BusinessInsights.API.Entities;
+using System.Collections.Generic;
+using Microsoft.AspNetCore.Http;
 
 namespace Gcpe.Hub.BusinessInsights.API.Controllers
 {
@@ -35,13 +37,13 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
         [HttpGet("rollup")]
         public async Task<ActionResult<RollupReportDto>> GetTotals()
         {
-            var translationItems = await _localDataRepository.GetTranslationItemsAsync();
+            var releases = await _localDataRepository.GetAllNewsReleaseItems();
 
-            if (!translationItems.Any()) return BadRequest("No translations available for date range.");
+            if (!releases.Any()) return BadRequest("No translations available for date range.");
 
-            translationItems = translationItems.Where(tr => tr.Urls.Any());
+            List<NewsReleaseWithUrls> items = await CreateViewModel(releases);
 
-            var report = _reportGenerationService.GenerateRollupReport(translationItems);
+            var report = _reportGenerationService.GenerateRollupReport(items);
             return Ok(report);
         }
 
@@ -55,26 +57,25 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
         [HttpGet("translations/custom")]
         public async Task<ActionResult<TranslationReportDto>> GetTranslations([FromQuery] string startDate = "", [FromQuery] string endDate = "")
         {
-            var translationItems = await _localDataRepository.GetTranslationItemsInDateRangeAsync(startDate, endDate);
+            var releases = await _localDataRepository.GetNewsReleaseItemsInDateRangeAsync(startDate, endDate);
 
-            if (!translationItems.Any()) return BadRequest("No translations available for date range.");
+            if (!releases.Any()) return BadRequest("No translations available for date range.");
 
-            translationItems = translationItems.Where(tr => tr.Urls.Any());
+            List<NewsReleaseWithUrls> items = await CreateViewModel(releases);
 
-            var report = _reportGenerationService.GenerateMonthlyReport(translationItems);
+            var report = _reportGenerationService.GenerateMonthlyReport(items);
             return Ok(report);
         }
 
         [HttpGet("translations")]
         public async Task<ActionResult<TranslationReportDto>> GetTranslationsForPreviousMonth()
         {
-            var translationItems = await _localDataRepository.GetTranslationItemsInDateRangeAsync(); // no args returns the previous month
+            var releases = await _localDataRepository.GetNewsReleasesForPreviousMonthAsync(); // no args returns the previous month
 
-            if (!translationItems.Any()) return BadRequest("No translations available for date range.");
+            if (!releases.Any()) return BadRequest("No translations available for date range.");
+            List<NewsReleaseWithUrls> items = await CreateViewModel(releases);
 
-            translationItems = translationItems.Where(tr => tr.Urls.Any());
-
-            var report = _reportGenerationService.GenerateMonthlyReport(translationItems);
+            var report = _reportGenerationService.GenerateMonthlyReport(items);
             return Ok(report);
         }
 
@@ -95,7 +96,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex.InnerException.Message);
-                return StatusCode(500, "Something went wrong.");
+                return StatusCode(StatusCodes.Status400BadRequest, $"Something went wrong: {ex.Message}");
             }
 
             return Ok();
@@ -110,13 +111,27 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
 
             var history = nrItems.Select(nr => nr.PublishDateTime).Select(d => new { d.Month, d.Year }).Distinct().ToList();
 
-            var dates = history.Select(d => new { 
-                month = new DateTime(d.Year,d.Month, 1).AddMonths(-1).ToString("MMMM", CultureInfo.InvariantCulture),
+            var dates = history.Select(d => new
+            {
+                month = new DateTime(d.Year, d.Month, 1).AddMonths(-1).ToString("MMMM", CultureInfo.InvariantCulture),
                 year = d.Year,
                 start = new DateTime(d.Year, d.Month, 1).AddMonths(-1).ToString("yyyy-MM-dd"),
-                end = new DateTime(d.Year, d.Month, 1).ToString("yyyy-MM-dd") });
+                end = new DateTime(d.Year, d.Month, 1).ToString("yyyy-MM-dd")
+            });
 
             return Ok(dates);
+        }
+
+        private async Task<List<NewsReleaseWithUrls>> CreateViewModel(IEnumerable<NewsReleaseItem> releases)
+        {
+            var items = new List<NewsReleaseWithUrls>();
+            foreach (var rls in releases)
+            {
+                var urls = await _localDataRepository.GetUrlsForNewsRelease(rls.Id);
+                if (urls.Any()) items.Add(new NewsReleaseWithUrls(rls, urls));
+            }
+
+            return items;
         }
     }
 }
