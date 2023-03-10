@@ -24,7 +24,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             {
                 try
                 {
-                    _logger.LogInformation("Starting data synchronization service, running every 20 seconds...");
+                    _logger.LogInformation("Starting data synchronization service, running every 15 minutes...");
                     await _dataSynchronizationService.SyncData();
                 }
                 catch (Exception ex)
@@ -32,7 +32,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                     _logger.LogError(ex.InnerException.Message);
                 }
 
-                await Task.Delay(21_600, stoppingToken);
+                await Task.Delay(900000, stoppingToken); // 21_600 for 20 seconds
             }
         }
     }

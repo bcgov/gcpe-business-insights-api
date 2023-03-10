@@ -55,7 +55,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<int?>("NewsReleaseItemId")
+                    b.Property<int>("NewsReleaseItemId")
                         .HasColumnType("int");
 
                     b.Property<DateTimeOffset>("PublishDateTime")
@@ -71,10 +71,17 @@ namespace Gcpe.Hub.BusinessInsights.API.Migrations
             modelBuilder.Entity("Gcpe.Hub.BusinessInsights.API.Entities.Url", b =>
                 {
                     b.HasOne("Gcpe.Hub.BusinessInsights.API.Entities.NewsReleaseItem", "NewsReleaseItem")
-                        .WithMany()
-                        .HasForeignKey("NewsReleaseItemId");
+                        .WithMany("Urls")
+                        .HasForeignKey("NewsReleaseItemId")
+                        .OnDelete(DeleteBehavior.ClientCascade)
+                        .IsRequired();
 
                     b.Navigation("NewsReleaseItem");
+                });
+
+            modelBuilder.Entity("Gcpe.Hub.BusinessInsights.API.Entities.NewsReleaseItem", b =>
+                {
+                    b.Navigation("Urls");
                 });
 #pragma warning restore 612, 618
         }

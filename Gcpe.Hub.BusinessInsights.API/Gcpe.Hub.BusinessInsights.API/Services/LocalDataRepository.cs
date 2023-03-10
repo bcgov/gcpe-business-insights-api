@@ -36,9 +36,11 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             _dbContext.Urls.Add(url);
         }
 
-        public async Task<IEnumerable<NewsReleaseItem>> GetAllNewsReleaseItems()
+        public async Task<IEnumerable<NewsReleaseItem>> GetAllNewsReleaseItems(bool includeUrls = false)
         {
-            return await _dbContext.NewsReleaseItems.ToListAsync();
+            if(!includeUrls) await _dbContext.NewsReleaseItems.ToListAsync();
+
+            return await _dbContext.NewsReleaseItems.Include(nr => nr.Urls).ToListAsync();
         }
 
         public async Task<IEnumerable<NewsReleaseItem>> GetNewsReleaseItemsInDateRangeAsync(string startDate = "", string endDate = "")

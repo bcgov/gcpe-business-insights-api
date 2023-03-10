@@ -92,6 +92,24 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             return newsReleaseEntities;
         }
 
+        public async Task<string> GetGuidForNewsRelease(string key)
+        {
+            var release = await _dbContext.NewsRelease.FirstOrDefaultAsync(r => r.Key == key);
+            return release.Id.ToString();
+        }
+
+        public async Task<string> GetDocumentIdForNewsRelease(string newsReleaseId)
+        {
+            var nrd = await _dbContext.NewsReleaseDocument.FirstOrDefaultAsync(nrd => nrd.ReleaseId == Guid.Parse(newsReleaseId));
+            return nrd.Id.ToString();
+        }
+
+        public async Task<string> GetHeadlineForNewsRelease(string documentId)
+        {
+            var nrdl = await _dbContext.NewsReleaseDocumentLanguage.FirstOrDefaultAsync(nrdl => nrdl.DocumentId == Guid.Parse(documentId));
+            return nrdl.Headline ?? "";
+        }
+
         private string FormatDateTime(DateTime dateTime) => dateTime.ToString("yyyy-MM-dd");
     }
 }

@@ -10,6 +10,7 @@ using System.Globalization;
 using Gcpe.Hub.BusinessInsights.API.Entities;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Gcpe.Hub.BusinessInsights.API.Controllers
 {
@@ -18,30 +19,42 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
     public class PostsController : ControllerBase
     {
         private readonly ILocalDataRepository _localDataRepository;
+        private readonly IHubBusinessInsightsRepository _hubBusinessInsightsRepository;
         private readonly IDataSynchronizationService _dataSynchronizationService;
         private readonly ILogger _logger;
         private readonly IReportGenerationService _reportGenerationService;
+        private readonly IMemoryCache _memoryCache;
         public PostsController(
             ILocalDataRepository localDataRepository,
+            IHubBusinessInsightsRepository hubBusinessInsightsRepository,
             IConfiguration config,
             IDataSynchronizationService dataSynchronizationService,
             ILogger logger,
-            IReportGenerationService reportGenerationService)
+            IReportGenerationService reportGenerationService,
+            IMemoryCache memoryCache)
         {
             _localDataRepository = localDataRepository ?? throw new ArgumentNullException(nameof(localDataRepository));
+            _hubBusinessInsightsRepository = hubBusinessInsightsRepository ?? throw new ArgumentNullException(nameof(hubBusinessInsightsRepository));
             _dataSynchronizationService = dataSynchronizationService ?? throw new ArgumentNullException(nameof(dataSynchronizationService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _reportGenerationService = reportGenerationService ?? throw new ArgumentNullException(nameof(reportGenerationService));
+            _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
         }
 
         [HttpGet("rollup")]
         public async Task<ActionResult<RollupReportDto>> GetTotals()
         {
-            var releases = await _localDataRepository.GetAllNewsReleaseItems();
+            var cacheKey = "rollup_items";
+            if (!_memoryCache.TryGetValue(cacheKey, out List<NewsReleaseWithUrls> items))
+            {
+                var releases = await _localDataRepository.GetAllNewsReleaseItems();
 
-            if (!releases.Any()) return BadRequest("No translations available for date range.");
+                if (!releases.Any()) return BadRequest("No translations available for date range.");
 
-            List<NewsReleaseWithUrls> items = await CreateViewModel(releases);
+                releases = releases.Where(release => release.PublishDateTime.Year == DateTimeOffset.Now.Year);
+                items = await CreateViewModel(releases);
+                _memoryCache.Set(cacheKey, items, TimeSpan.FromMinutes(5));
+            }
 
             var report = _reportGenerationService.GenerateRollupReport(items);
             return Ok(report);
@@ -57,11 +70,16 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
         [HttpGet("translations/custom")]
         public async Task<ActionResult<TranslationReportDto>> GetTranslations([FromQuery] string startDate = "", [FromQuery] string endDate = "")
         {
-            var releases = await _localDataRepository.GetNewsReleaseItemsInDateRangeAsync(startDate, endDate);
+            var cacheKey = $"items_{startDate}_{endDate}";
+            if (!_memoryCache.TryGetValue(cacheKey, out List<NewsReleaseWithUrls> items))
+            {
+                var releases = await _localDataRepository.GetNewsReleaseItemsInDateRangeAsync(startDate, endDate);
 
-            if (!releases.Any()) return BadRequest("No translations available for date range.");
-
-            List<NewsReleaseWithUrls> items = await CreateViewModel(releases);
+                if (!releases.Any()) return BadRequest("No translations available for date range.");
+                items = await CreateViewModel(releases);
+                await GetHeadlines(items);
+                _memoryCache.Set(cacheKey, items, TimeSpan.FromMinutes(5));
+            }
 
             var report = _reportGenerationService.GenerateMonthlyReport(items);
             return Ok(report);
@@ -70,13 +88,30 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
         [HttpGet("translations")]
         public async Task<ActionResult<TranslationReportDto>> GetTranslationsForPreviousMonth()
         {
-            var releases = await _localDataRepository.GetNewsReleasesForPreviousMonthAsync(); // no args returns the previous month
+            var cacheKey = "items";
+            if (!_memoryCache.TryGetValue(cacheKey, out List<NewsReleaseWithUrls> items))
+            {
+                var releases = await _localDataRepository.GetNewsReleasesForPreviousMonthAsync(); // no args returns the previous month
 
-            if (!releases.Any()) return BadRequest("No translations available for date range.");
-            List<NewsReleaseWithUrls> items = await CreateViewModel(releases);
+                if (!releases.Any()) return BadRequest("No translations available for date range.");
+
+                items = await CreateViewModel(releases);
+                await GetHeadlines(items);
+                _memoryCache.Set(cacheKey, items, TimeSpan.FromMinutes(5));
+            }
 
             var report = _reportGenerationService.GenerateMonthlyReport(items);
             return Ok(report);
+        }
+
+        private async Task GetHeadlines(List<NewsReleaseWithUrls> items)
+        {
+            foreach (var item in items)
+            {
+                var id = await _hubBusinessInsightsRepository.GetGuidForNewsRelease(item.NewsRelease.Key);
+                var documentId = await _hubBusinessInsightsRepository.GetDocumentIdForNewsRelease(id);
+                item.Headline = await _hubBusinessInsightsRepository.GetHeadlineForNewsRelease(documentId);
+            }
         }
 
         /// <summary>
@@ -87,36 +122,38 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
         /// <param name="endDate"></param>
         // [Authorize]
         [HttpGet("sync")]
-        public async Task<ActionResult> SyncCustomRange([FromQuery] string startDate = "", [FromQuery] string endDate = "")
+        public async Task<ActionResult> SyncCustomRange([FromQuery] string s = "", [FromQuery] string e = "")
         {
             try
             {
-                await _dataSynchronizationService.SyncData(startDate, endDate);
+                if (!IsValidDateTimeString(s) || !IsValidDateTimeString(e)) return BadRequest("Something went wrong: Either the start or end date is in the wrong format. It should be dd-MM-yyyy.");
+
+                await _dataSynchronizationService.SyncData(s, e); // s and e refer to start and end date, shortened for convenience
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex.InnerException.Message);
+                _logger.LogError(ex.Message);
                 return StatusCode(StatusCodes.Status400BadRequest, $"Something went wrong: {ex.Message}");
             }
 
-            return Ok();
+            return Ok($"synced hub news releases successfully start date: {s} end date: {e}");
         }
 
         [HttpGet("translations/history")]
         public async Task<ActionResult<TranslationReportDto>> GetHistory()
         {
-            var nrItems = await _localDataRepository.GetAllNewsReleaseItems();
+            var nrItems = await _localDataRepository.GetAllNewsReleaseItems(includeUrls: true);
 
             if (!nrItems.Any()) return BadRequest("No releases available for date range.");
 
-            var history = nrItems.Select(nr => nr.PublishDateTime).Select(d => new { d.Month, d.Year }).Distinct().ToList();
+            var history = nrItems.Where(nr => nr.Urls.Any()).Select(nr => nr.PublishDateTime).Select(d => new { d.Month, d.Year }).Distinct().ToList();
 
             var dates = history.Select(d => new
             {
-                month = new DateTime(d.Year, d.Month, 1).AddMonths(-1).ToString("MMMM", CultureInfo.InvariantCulture),
+                month = new DateTime(d.Year, d.Month, 1).ToString("MMMM", CultureInfo.InvariantCulture),
                 year = d.Year,
-                start = new DateTime(d.Year, d.Month, 1).AddMonths(-1).ToString("yyyy-MM-dd"),
-                end = new DateTime(d.Year, d.Month, 1).ToString("yyyy-MM-dd")
+                start = new DateTime(d.Year, d.Month, 1).ToString("yyyy-MM-dd"),
+                end = new DateTime(d.Year, d.Month, 1).AddMonths(1).ToString("yyyy-MM-dd")
             });
 
             return Ok(dates);
@@ -132,6 +169,15 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
             }
 
             return items;
+        }
+
+        private bool IsValidDateTimeString(string datetime)
+        {
+            DateTime result = new DateTime();
+            if (!DateTime.TryParseExact(datetime, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out result))
+                return false;
+
+            return true;
         }
     }
 }

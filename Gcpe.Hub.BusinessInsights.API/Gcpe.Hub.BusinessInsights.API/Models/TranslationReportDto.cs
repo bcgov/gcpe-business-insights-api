@@ -8,6 +8,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Models
         public string Year { get; set; }
         public int NewsReleaseVolumeByMonth { get; set; }
         public int TranslationsVolumeByMonth { get; set; }
+        public int MinistryTranslationsVolume { get; set; }
         public IEnumerable<Translation> Translations { get; set; }
         public IEnumerable<MinistryFrequencyItem> ReleasesTranslatedByMinistry { get; set; }
         public IEnumerable<LanguageFrequencyItem> LanguageCounts { get; set; }

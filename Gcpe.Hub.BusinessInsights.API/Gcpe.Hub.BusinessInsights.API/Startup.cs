@@ -35,7 +35,7 @@ namespace Gcpe.Hub.BusinessInsights.API
 
             services.AddProblemDetails(opts => 
             {
-                opts.IncludeExceptionDetails = (ctx, ex) => false;    
+                opts.IncludeExceptionDetails = (ctx, ex) => true;    
             });
 
             services.AddDbContext<HubDbContext>(options => options.UseSqlServer(hubDbConnectionString));
@@ -83,6 +83,8 @@ namespace Gcpe.Hub.BusinessInsights.API
             services.AddTransient<ILogger>(s => s.GetRequiredService<ILogger<Program>>());
 
             services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+
+            services.AddMemoryCache();
 
             services.AddControllers();
             services.AddSwaggerGen(c =>

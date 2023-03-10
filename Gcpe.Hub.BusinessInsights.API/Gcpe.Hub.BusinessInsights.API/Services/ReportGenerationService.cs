@@ -2,6 +2,7 @@
 using Gcpe.Hub.BusinessInsights.API.Models;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -21,6 +22,22 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             get { return _allLanguages; }
         }
 
+        private readonly Dictionary<string, int> _allMonths = new Dictionary<string, int>()
+        {
+            { "Jan", 1 },
+            { "Feb", 2 },
+            { "Mar", 3 },
+            { "Apr", 4 },
+            { "May", 5 },
+            { "Jun", 6 },
+            { "Jul", 7 },
+            { "Aug", 8 },
+            { "Sep", 9 },
+            { "Oct", 10 },
+            { "Nov", 11 },
+            { "Dec", 12 },
+        };
+
         public TranslationReportDto GenerateMonthlyReport(List<NewsReleaseWithUrls> items)
         {
             var pdfCount = 0;
@@ -33,12 +50,17 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             }
 
             var ministryFrequency = new Dictionary<string, int>();
+
             foreach (var item in items)
             {
                 var ministry = item.NewsRelease.Ministry;
+                if (!ministryFrequency.ContainsKey(ministry))
+                {
+                    ministryFrequency.Add(ministry, item.Urls.Count());
+                    continue;
+                }
 
-                if (!ministryFrequency.ContainsKey(ministry)) ministryFrequency.Add(ministry, 0);
-                ministryFrequency[ministry] += 1;
+                ministryFrequency[ministry] += item.Urls.Count();
             }
 
             var bestKey = ministryFrequency.First().Key;
@@ -81,7 +103,11 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
             foreach (var item in languages)
             {
-                if (!languageFrequency.ContainsKey(item)) languageFrequency.Add(item, 0);
+                if (!languageFrequency.ContainsKey(item))
+                {
+                    languageFrequency.Add(item, 0);
+                    continue;
+                }
                 languageFrequency[item] += 1;
             }
 
@@ -90,10 +116,10 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
             foreach (var p in languageFrequency.Skip(1))
             {
-                if (p.Value >= bestValue)
+                if (p.Value >= bestLangValue)
                 {
-                    bestKey = p.Key;
-                    bestValue = p.Value;
+                    bestLangKey = p.Key;
+                    bestLangValue = p.Value;
                 }
             }
 
@@ -117,13 +143,15 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                 .Select(i => new Translation
                 {
                     Key = i.NewsRelease.Key,
+                    Headline = i.Headline ?? "",
                     Ministry = i.NewsRelease.Ministry,
                     PublishDateTime = i.NewsRelease.PublishDateTime,
                     Urls = i.Urls.Select(u => u.Href).ToList()
                 }),
                 TranslationsVolumeByMonth = pdfCount,
                 ReleasesTranslatedByMinistry = ministryFrequencyResults.OrderByDescending(i => i.Count),
-                LanguageCounts = languageFrequencyResults.OrderByDescending(i => i.Count)
+                LanguageCounts = languageFrequencyResults.OrderByDescending(i => i.Count),
+                MinistryTranslationsVolume = ministryFrequencyResults.Select(c => c.Count).Sum()
             };
 
             return report;
@@ -131,6 +159,48 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
         public RollupReportDto GenerateRollupReport(List<NewsReleaseWithUrls> items)
         {
+            var dates = items.Select(i => i.NewsRelease.PublishDateTime).Select(d => new { d.Month, d.Year }).Distinct().ToList();
+
+            var dateRanges = dates.Select(d => new
+            {
+                month = new DateTime(d.Year, d.Month, 1).ToString("MMM", CultureInfo.InvariantCulture),
+                year = d.Year,
+                start = new DateTime(d.Year, d.Month, 1).ToString("yyyy-MM-dd"),
+                end = new DateTime(d.Year, d.Month, 1).AddMonths(1).ToString("yyyy-MM-dd")
+            });
+
+            List<MonthWithPdfCount> monthsWithPdfCounts = new List<MonthWithPdfCount>();
+            foreach (var range in dateRanges)
+            {
+                var itemsInRange = items
+                    .Where(i => i.NewsRelease.PublishDateTime >= DateTimeOffset.Parse(range.start)
+                        && i.NewsRelease.PublishDateTime <= DateTimeOffset.Parse(range.end)).ToList();
+
+                var month = $"{range.month}-{range.year % 100}";
+
+                var pdfs = 0;
+                foreach (var item in itemsInRange)
+                {
+                    foreach (var doc in item.Urls)
+                    {
+                        pdfs++;
+                    }
+                }
+
+                var monthWithPdfCount = new MonthWithPdfCount { Month = month, PdfCount = pdfs };
+                monthsWithPdfCounts.Add(monthWithPdfCount);
+            }
+            monthsWithPdfCounts = monthsWithPdfCounts.OrderBy(i => _allMonths[i.Month.Substring(0, i.Month.IndexOf('-'))]).ToList();
+
+            // add months without data
+            for (var idx = monthsWithPdfCounts.Count + 1; idx <= 12; idx++)
+            {
+                var date = new DateTime(DateTime.Now.Year, idx, 1);
+                var month = date.ToString("MMM", CultureInfo.InvariantCulture);
+                var year = date.ToString("yy");
+                monthsWithPdfCounts.Add(new MonthWithPdfCount { Month = $"{month}-{year}", PdfCount = 0 });
+            }
+
             var pdfCount = 0;
             foreach (var item in items)
             {
@@ -141,12 +211,17 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             }
 
             var ministryFrequency = new Dictionary<string, int>();
+
             foreach (var item in items)
             {
                 var ministry = item.NewsRelease.Ministry;
+                if (!ministryFrequency.ContainsKey(ministry))
+                {
+                    ministryFrequency.Add(ministry, item.Urls.Count());
+                    continue;
+                }
 
-                if (!ministryFrequency.ContainsKey(ministry)) ministryFrequency.Add(ministry, 0);
-                ministryFrequency[ministry] += 1;
+                ministryFrequency[ministry] += item.Urls.Count();
             }
 
             var bestKey = ministryFrequency.First().Key;
@@ -218,11 +293,13 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
             var report = new RollupReportDto
             {
+                monthsWithPdfCounts = monthsWithPdfCounts,
                 Year = items.FirstOrDefault().NewsRelease.PublishDateTime.Year.ToString(),
                 NewsReleaseVolumeByMonth = items.Count(),
                 TranslationsVolumeByMonth = pdfCount,
                 ReleasesTranslatedByMinistry = ministryFrequencyResults.OrderByDescending(i => i.Count),
-                LanguageCounts = languageFrequencyResults.OrderByDescending(i => i.Count)
+                LanguageCounts = languageFrequencyResults.OrderByDescending(i => i.Count),
+                MinistryTranslationsVolume = ministryFrequencyResults.Select(c => c.Count).Sum()
             };
 
             return report;

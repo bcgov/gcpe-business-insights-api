@@ -24,57 +24,39 @@ namespace Gcpe.Hub.BusinessInsights.API.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "TranslationItems",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Key = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    Ministry = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    PublishDateTime = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_TranslationItems", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "Urls",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Href = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    TranslationItemId = table.Column<int>(type: "int", nullable: false),
+                    NewsReleaseItemId = table.Column<int>(type: "int", nullable: false),
                     PublishDateTime = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Urls", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Urls_TranslationItems_TranslationItemId",
-                        column: x => x.TranslationItemId,
-                        principalTable: "TranslationItems",
+                        name: "FK_Urls_NewsReleaseItems_NewsReleaseItemId",
+                        column: x => x.NewsReleaseItemId,
+                        principalTable: "NewsReleaseItems",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_Urls_TranslationItemId",
+                name: "IX_Urls_NewsReleaseItemId",
                 table: "Urls",
-                column: "TranslationItemId");
+                column: "NewsReleaseItemId");
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "NewsReleaseItems");
-
-            migrationBuilder.DropTable(
                 name: "Urls");
 
             migrationBuilder.DropTable(
-                name: "TranslationItems");
+                name: "NewsReleaseItems");
         }
     }
 }

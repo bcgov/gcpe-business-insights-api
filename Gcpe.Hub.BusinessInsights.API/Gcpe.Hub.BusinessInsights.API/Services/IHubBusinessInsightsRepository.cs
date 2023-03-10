@@ -8,5 +8,8 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
     {
         Task<IEnumerable<NewsReleaseEntity>> GetNewsReleasesAsync();
         Task<IEnumerable<NewsReleaseEntity>> GetNewsReleasesAsync(string startDate, string endDate);
+        Task<string> GetGuidForNewsRelease(string key);
+        Task<string> GetDocumentIdForNewsRelease(string newsReleaseId);
+        Task<string> GetHeadlineForNewsRelease(string documentId);
     }
 }

@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Gcpe.Hub.BusinessInsights.API.Migrations
 {
     [DbContext(typeof(LocalDbContext))]
-    [Migration("20221212230512_InitialMigration")]
+    [Migration("20230223210537_InitialMigration")]
     partial class InitialMigration
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -45,31 +45,6 @@ namespace Gcpe.Hub.BusinessInsights.API.Migrations
                     b.ToTable("NewsReleaseItems");
                 });
 
-            modelBuilder.Entity("Gcpe.Hub.BusinessInsights.API.Entities.TranslationItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.IdentityColumn);
-
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("Ministry")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTimeOffset>("PublishDateTime")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("TranslationItems");
-                });
-
             modelBuilder.Entity("Gcpe.Hub.BusinessInsights.API.Entities.Url", b =>
                 {
                     b.Property<int>("Id")
@@ -82,31 +57,31 @@ namespace Gcpe.Hub.BusinessInsights.API.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<int>("NewsReleaseItemId")
+                        .HasColumnType("int");
+
                     b.Property<DateTimeOffset>("PublishDateTime")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<int>("TranslationItemId")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("TranslationItemId");
+                    b.HasIndex("NewsReleaseItemId");
 
                     b.ToTable("Urls");
                 });
 
             modelBuilder.Entity("Gcpe.Hub.BusinessInsights.API.Entities.Url", b =>
                 {
-                    b.HasOne("Gcpe.Hub.BusinessInsights.API.Entities.TranslationItem", "TranslationItem")
+                    b.HasOne("Gcpe.Hub.BusinessInsights.API.Entities.NewsReleaseItem", "NewsReleaseItem")
                         .WithMany("Urls")
-                        .HasForeignKey("TranslationItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasForeignKey("NewsReleaseItemId")
+                        .OnDelete(DeleteBehavior.ClientCascade)
                         .IsRequired();
 
-                    b.Navigation("TranslationItem");
+                    b.Navigation("NewsReleaseItem");
                 });
 
-            modelBuilder.Entity("Gcpe.Hub.BusinessInsights.API.Entities.TranslationItem", b =>
+            modelBuilder.Entity("Gcpe.Hub.BusinessInsights.API.Entities.NewsReleaseItem", b =>
                 {
                     b.Navigation("Urls");
                 });
