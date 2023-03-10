@@ -7,7 +7,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
     public interface ILocalDataRepository
     {
         NewsReleaseItem AddNewsReleaseEntity(NewsReleaseEntity newsReleaseEntity);
-        Task<IEnumerable<NewsReleaseItem>> GetAllNewsReleaseItems();
+        Task<IEnumerable<NewsReleaseItem>> GetAllNewsReleaseItems(bool includeUrls = false);
         Task<IEnumerable<NewsReleaseItem>> GetNewsReleasesForPreviousMonthAsync();
         Task<IEnumerable<Url>> GetUrlsForPreviousMonthAsync();
         void DeleteNewsReleasesAsync(IEnumerable<NewsReleaseItem> newsReleaseItems);
