@@ -146,6 +146,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                     Headline = i.Headline ?? "",
                     Ministry = i.NewsRelease.Ministry,
                     PublishDateTime = i.NewsRelease.PublishDateTime,
+                    ReleaseType = i.NewsRelease.ReleaseType,
                     Urls = i.Urls.Select(u => u.Href).ToList()
                 }),
                 TranslationsVolumeByMonth = pdfCount,
