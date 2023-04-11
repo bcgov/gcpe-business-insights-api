@@ -38,12 +38,12 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
         public async Task<IEnumerable<NewsReleaseItem>> GetAllNewsReleaseItems(bool includeUrls = false)
         {
-            if(!includeUrls) await _dbContext.NewsReleaseItems.ToListAsync();
+            if(!includeUrls) return await _dbContext.NewsReleaseItems.ToListAsync();
 
             return await _dbContext.NewsReleaseItems.Include(nr => nr.Urls).ToListAsync();
         }
 
-        public async Task<IEnumerable<NewsReleaseItem>> GetNewsReleaseItemsInDateRangeAsync(string startDate = "", string endDate = "")
+        public async Task<IEnumerable<NewsReleaseItem>> GetNewsReleaseItemsInDateRangeAsync(string startDate = "", string endDate = "", bool includeUrls = false)
         {
             DateGuard.ThrowIfNullOrWhitespace(startDate, endDate);
             DateGuard.ThrowIfNullOrEmpty(endDate, startDate);
@@ -56,10 +56,16 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             DateGuard.ThrowIfNotFirstOfTheMonth(start, end);
             DateGuard.ThrowIfDateRangeNotOneMonth(start, end);
 
-            return await _dbContext.NewsReleaseItems
-                .FromSqlRaw(@$"
-                    SELECT * FROM NewsReleaseItems WHERE PublishDateTime >= '{startDate}' and PublishDateTime <= '{endDate}';
-                ").ToListAsync();
+            if (!includeUrls)
+            {
+                return await _dbContext.NewsReleaseItems
+                    .FromSqlRaw(@$"
+                        SELECT * FROM NewsReleaseItems WHERE PublishDateTime >= '{startDate}' and PublishDateTime <= '{endDate}';
+                    ")
+                    .ToListAsync();
+            }
+
+            return await _dbContext.NewsReleaseItems.Where(nr => nr.PublishDateTime >= start && nr.PublishDateTime <= end).ToListAsync();
         }
 
         public async Task<IEnumerable<NewsReleaseItem>> GetNewsReleasesForPreviousMonthAsync()

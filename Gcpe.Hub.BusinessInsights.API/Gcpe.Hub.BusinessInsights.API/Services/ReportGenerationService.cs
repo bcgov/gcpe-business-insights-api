@@ -85,6 +85,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             var languages = new List<string>();
             foreach (var item in items)
             {
+
                 foreach (var doc in item.Urls)
                 {
 
@@ -105,7 +106,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             {
                 if (!languageFrequency.ContainsKey(item))
                 {
-                    languageFrequency.Add(item, 0);
+                    languageFrequency.Add(item, 1);
                     continue;
                 }
                 languageFrequency[item] += 1;
@@ -265,7 +266,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
             foreach (var item in languages)
             {
-                if (!languageFrequency.ContainsKey(item)) languageFrequency.Add(item, 0);
+                if (!languageFrequency.ContainsKey(item)) languageFrequency.Add(item, 1);
                 languageFrequency[item] += 1;
             }
 
