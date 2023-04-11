@@ -71,7 +71,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             var timer = new Stopwatch();
             _logger.LogInformation("Starting data sync...");
             var newsReleaseEntities = await _hubBusinessInsightsRepository.GetNewsReleasesAsync(startDate, endDate);
-            var localNewsReleaseEntities = await _localDataRepository.GetNewsReleaseItemsInDateRangeAsync(startDate, endDate);
+            var localNewsReleaseEntities = await _localDataRepository.GetNewsReleaseItemsInDateRangeAsync(startDate, endDate, false);
             var isLocalCacheUpToDate = newsReleaseEntities.Count() == localNewsReleaseEntities.Count();
 
             if (isLocalCacheUpToDate) _logger.LogInformation("NR cache for date range is up-to-date, skipping custom sync...");
@@ -82,7 +82,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                 _logger.LogInformation("NR cache is out-dated for custom date range, removing old entries and fetching latest NRs...");
                 if (localNewsReleaseEntities.Any())
                 {
-                    var localNRs = await _localDataRepository.GetNewsReleaseItemsInDateRangeAsync(startDate, endDate);
+                    var localNRs = await _localDataRepository.GetNewsReleaseItemsInDateRangeAsync(startDate, endDate, false);
                     _localDataRepository.DeleteNewsReleasesAsync(localNRs);
                 }
 
