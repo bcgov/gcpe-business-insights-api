@@ -40,15 +40,8 @@ namespace Gcpe.Hub.BusinessInsights.API
 
             services.AddDbContext<HubDbContext>(options => options.UseSqlServer(hubDbConnectionString));
             services.AddDbContext<HubBusinessInsightsDbContext>(options => options.UseSqlServer(hubDbConnectionString));
-            services.AddDbContext<LocalDbContext>(options =>
-            {
-                options.UseSqlServer(localDbConnectionString);
-                options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
-                options.EnableSensitiveDataLogging(false);
-            });
 
             services.AddHealthChecks()
-                .AddDbContextCheck<LocalDbContext>()
                 .AddDbContextCheck<HubBusinessInsightsDbContext>()
                 .AddDbContextCheck<HubDbContext>()
                 .AddSqlServer(
@@ -66,11 +59,7 @@ namespace Gcpe.Hub.BusinessInsights.API
                 options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore);
 
             services.AddScoped<IHubBusinessInsightsRepository, HubBusinessInsightsRepository>();
-            services.AddScoped<ILocalDataRepository, LocalDataRepository>();
 
-            services.AddHostedService<TranslationProcessingWorker>();
-            services.AddScoped<IScopedProcessingService, ScopedProcessingService>();
-            services.AddScoped<IDataSynchronizationService, DataSynchronizationService>();
             services.AddScoped<IReportGenerationService, ReportGenerationService>();
 
             services.AddCors(o => o.AddPolicy("MyPolicy", builder =>

@@ -9,8 +9,10 @@ using Microsoft.Extensions.Logging;
 using System.Globalization;
 using Gcpe.Hub.BusinessInsights.API.Entities;
 using System.Collections.Generic;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Caching.Memory;
+using Azure.Storage.Blobs.Models;
+using Azure.Storage.Blobs;
+using Azure;
+using Url = Gcpe.Hub.BusinessInsights.API.Models.Url;
 
 namespace Gcpe.Hub.BusinessInsights.API.Controllers
 {
@@ -18,45 +20,76 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
     [Route("api/posts")]
     public class PostsController : ControllerBase
     {
-        private readonly ILocalDataRepository _localDataRepository;
         private readonly IHubBusinessInsightsRepository _hubBusinessInsightsRepository;
-        private readonly IDataSynchronizationService _dataSynchronizationService;
         private readonly ILogger _logger;
         private readonly IReportGenerationService _reportGenerationService;
-        private readonly IMemoryCache _memoryCache;
+        private readonly IConfiguration _config;
         public PostsController(
-            ILocalDataRepository localDataRepository,
             IHubBusinessInsightsRepository hubBusinessInsightsRepository,
             IConfiguration config,
-            IDataSynchronizationService dataSynchronizationService,
             ILogger logger,
-            IReportGenerationService reportGenerationService,
-            IMemoryCache memoryCache)
+            IReportGenerationService reportGenerationService)
         {
-            _localDataRepository = localDataRepository ?? throw new ArgumentNullException(nameof(localDataRepository));
             _hubBusinessInsightsRepository = hubBusinessInsightsRepository ?? throw new ArgumentNullException(nameof(hubBusinessInsightsRepository));
-            _dataSynchronizationService = dataSynchronizationService ?? throw new ArgumentNullException(nameof(dataSynchronizationService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _reportGenerationService = reportGenerationService ?? throw new ArgumentNullException(nameof(reportGenerationService));
-            _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
+            _config = config ?? throw new ArgumentNullException(nameof(_config));
         }
 
         [HttpGet("rollup")]
         public async Task<ActionResult<RollupReportDto>> GetTotals()
         {
-            var cacheKey = "rollup_items";
-            if (!_memoryCache.TryGetValue(cacheKey, out List<NewsReleaseWithUrls> items))
+            var newsReleaseEntities = await _hubBusinessInsightsRepository.GetAllNewsReleasesAsync();
+            newsReleaseEntities = newsReleaseEntities.Where(release => release.PublishDateTime.Year == DateTimeOffset.Now.Year);
+            var items = newsReleaseEntities.Select(r => new NewsReleaseItem
             {
-                var releases = await _localDataRepository.GetAllNewsReleaseItems();
+                Key = r.Key,
+                Ministry = r.Ministry,
+                PublishDateTime = r.PublishDateTime,
+                ReleaseType = r.ReleaseType
+            });
 
-                if (!releases.Any()) return BadRequest("No translations available for date range.");
-
-                releases = releases.Where(release => release.PublishDateTime.Year == DateTimeOffset.Now.Year);
-                items = await CreateViewModel(releases);
-                _memoryCache.Set(cacheKey, items, TimeSpan.FromMinutes(5));
+            var releaseItems = items.ToList();
+            foreach (var release in releaseItems)
+            {
+                var urls = await GetBlobs(release.Key, release.ReleaseType, release.PublishDateTime);
+                foreach (var url in urls)
+                {
+                    var u = new Url { Href = $"{_config["AzureTranslationsUrl"]}{url}", PublishDateTime = release.PublishDateTime };
+                    release.Urls.Add(u);
+                }
             }
 
-            var report = _reportGenerationService.GenerateRollupReport(items);
+            releaseItems = releaseItems.Where(i => i.Urls.Any()).ToList();
+            var report = _reportGenerationService.GenerateRollupReport(releaseItems);
+            return Ok(report);
+        }
+
+        [HttpGet("translations")]
+        public async Task<ActionResult<TranslationReportDto>> GetTranslationsForPreviousMonth()
+        {
+            var newsReleaseEntities = await _hubBusinessInsightsRepository.GetNewsReleasesAsync(); // no args returns the previous month
+            var items = newsReleaseEntities.Select(r => new NewsReleaseItem
+            {
+                Key = r.Key,
+                Ministry = r.Ministry,
+                PublishDateTime = r.PublishDateTime,
+                ReleaseType = r.ReleaseType
+            });
+
+            var releaseItems = items.ToList();
+            foreach (var release in releaseItems)
+            {
+                var urls = await GetBlobs(release.Key, release.ReleaseType, release.PublishDateTime);
+                foreach (var url in urls)
+                {
+                    var u = new Url { Href = $"{_config["AzureTranslationsUrl"]}{url}", PublishDateTime = release.PublishDateTime };
+                    release.Urls.Add(u);
+                }
+            }
+            await GetHeadlines(releaseItems);
+
+            var report = _reportGenerationService.GenerateMonthlyReport(releaseItems);
             return Ok(report);
         }
 
@@ -70,84 +103,65 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
         [HttpGet("translations/custom")]
         public async Task<ActionResult<TranslationReportDto>> GetTranslations([FromQuery] string startDate = "", [FromQuery] string endDate = "")
         {
-            var cacheKey = $"items_{startDate}_{endDate}";
-            if (!_memoryCache.TryGetValue(cacheKey, out List<NewsReleaseWithUrls> items))
+            var newsReleaseEntities = await _hubBusinessInsightsRepository.GetNewsReleasesInDateRangeAsync(startDate, endDate);
+            var items = newsReleaseEntities.Select(r => new NewsReleaseItem
             {
-                var releases = await _localDataRepository.GetNewsReleaseItemsInDateRangeAsync(startDate, endDate);
+                Key = r.Key,
+                Ministry = r.Ministry,
+                PublishDateTime = r.PublishDateTime,
+                ReleaseType = r.ReleaseType
+            });
 
-                if (!releases.Any()) return BadRequest("No translations available for date range.");
-                items = await CreateViewModel(releases);
-                await GetHeadlines(items);
-                _memoryCache.Set(cacheKey, items, TimeSpan.FromMinutes(5));
+            var releaseItems = items.ToList();
+            foreach (var release in releaseItems)
+            {
+                var urls = await GetBlobs(release.Key, release.ReleaseType, release.PublishDateTime);
+                foreach (var url in urls)
+                {
+                    var u = new Url { Href = $"{_config["AzureTranslationsUrl"]}{url}", PublishDateTime = release.PublishDateTime };
+                    release.Urls.Add(u);
+                }
             }
+            await GetHeadlines(releaseItems);
 
-            var report = _reportGenerationService.GenerateMonthlyReport(items);
+            var report = _reportGenerationService.GenerateMonthlyReport(releaseItems);
             return Ok(report);
         }
 
-        [HttpGet("translations")]
-        public async Task<ActionResult<TranslationReportDto>> GetTranslationsForPreviousMonth()
-        {
-            var cacheKey = "items";
-            if (!_memoryCache.TryGetValue(cacheKey, out List<NewsReleaseWithUrls> items))
-            {
-                var releases = await _localDataRepository.GetNewsReleasesForPreviousMonthAsync(); // no args returns the previous month
-
-                if (!releases.Any()) return BadRequest("No translations available for date range.");
-
-                items = await CreateViewModel(releases);
-                await GetHeadlines(items);
-                _memoryCache.Set(cacheKey, items, TimeSpan.FromMinutes(5));
-            }
-
-            var report = _reportGenerationService.GenerateMonthlyReport(items);
-            return Ok(report);
-        }
-
-        private async Task GetHeadlines(List<NewsReleaseWithUrls> items)
+        private async Task GetHeadlines(List<NewsReleaseItem> items)
         {
             foreach (var item in items)
             {
-                var id = await _hubBusinessInsightsRepository.GetGuidForNewsRelease(item.NewsRelease.Key);
+                var id = await _hubBusinessInsightsRepository.GetGuidForNewsRelease(item.Key);
                 var documentId = await _hubBusinessInsightsRepository.GetDocumentIdForNewsRelease(id);
                 item.Headline = await _hubBusinessInsightsRepository.GetHeadlineForNewsRelease(documentId);
             }
         }
 
-        /// <summary>
-        /// This action fetches translations for any month. The start and end dates must be the first of the previous month and the first of the current month, respectively.
-        /// For example for November 2022, start and end dates would be 2022-11-01 and 2022-12-01. The URL would be https://localhost:5001/api/posts/sync?startDate=2022-11-01&endDate=2022-12-01
-        /// </summary>
-        /// <param name="startDate"></param>
-        /// <param name="endDate"></param>
-        // [Authorize]
-        [HttpGet("sync")]
-        public async Task<ActionResult> SyncCustomRange([FromQuery] string s = "", [FromQuery] string e = "")
-        {
-            try
-            {
-                if (!IsValidDateTimeString(s) || !IsValidDateTimeString(e)) return BadRequest("Something went wrong: Either the start or end date is in the wrong format. It should be dd-MM-yyyy.");
-
-                await _dataSynchronizationService.SyncData(s, e); // s and e refer to start and end date, shortened for convenience
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex.Message);
-                return StatusCode(StatusCodes.Status400BadRequest, $"Something went wrong: {ex.Message}");
-            }
-
-            return Ok($"synced hub news releases successfully start date: {s} end date: {e}");
-        }
-
         [HttpGet("translations/history")]
         public async Task<ActionResult<TranslationReportDto>> GetHistory()
         {
-            var nrItems = await _localDataRepository.GetAllNewsReleaseItems(includeUrls: true);
+            var newsReleaseEntities = await _hubBusinessInsightsRepository.GetNewsReleasesAsync(); // no args returns the previous month
+            var items = newsReleaseEntities.Select(r => new NewsReleaseItem
+            {
+                Key = r.Key,
+                Ministry = r.Ministry,
+                PublishDateTime = r.PublishDateTime,
+                ReleaseType = r.ReleaseType
+            });
 
-            if (!nrItems.Any()) return BadRequest("No releases available for date range.");
+            var releaseItems = items.ToList();
+            foreach (var release in releaseItems)
+            {
+                var urls = await GetBlobs(release.Key, release.ReleaseType, release.PublishDateTime);
+                foreach (var url in urls)
+                {
+                    var u = new Url { Href = $"{_config["AzureTranslationsUrl"]}{url}", PublishDateTime = release.PublishDateTime };
+                    release.Urls.Add(u);
+                }
+            }
 
-            var history = nrItems.Where(nr => nr.Urls.Any()).Select(nr => nr.PublishDateTime).Select(d => new { d.Month, d.Year }).Distinct().ToList();
-
+            var history = releaseItems.Where(nr => nr.Urls.Any()).Select(nr => nr.PublishDateTime).Select(d => new { d.Month, d.Year }).Distinct().ToList();
             var dates = history.Select(d => new
             {
                 month = new DateTime(d.Year, d.Month, 1).ToString("MMMM", CultureInfo.InvariantCulture),
@@ -156,28 +170,38 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
                 end = new DateTime(d.Year, d.Month, 1).AddMonths(1).ToString("yyyy-MM-dd")
             });
 
-            return Ok(dates);
+            var sortedDates = dates.OrderBy(d => d.year).ThenBy(d => d.month);
+            var groupedDates = sortedDates
+                .GroupBy(d => d.year)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderBy(d => DateTime.ParseExact(d.month, "MMMM", CultureInfo.InvariantCulture).Month).ThenBy(d => d.month).ToList()
+                );
+            return Ok(groupedDates);
         }
 
-        private async Task<List<NewsReleaseWithUrls>> CreateViewModel(IEnumerable<NewsReleaseItem> releases)
+        private async Task<List<string>> GetBlobs(string releaseId, int releaseType, DateTimeOffset publishDateTime)
         {
-            var items = new List<NewsReleaseWithUrls>();
-            foreach (var rls in releases)
+            var blobNames = new List<string>();
+            try
             {
-                var urls = await _localDataRepository.GetUrlsForNewsRelease(rls.Id);
-                if (urls.Any()) items.Add(new NewsReleaseWithUrls(rls, urls));
+                BlobServiceClient blobServiceClient = new BlobServiceClient(_config["CloudAccountConnectionString"]);
+                BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient("translations");
+                var parentDir = "releases";
+                if (releaseType == 3) parentDir = "factsheets";
+                AsyncPageable<BlobItem> blobs = containerClient.GetBlobsAsync(prefix: $"{parentDir}/{releaseId}");
+
+                await foreach (var blob in blobs)
+                {
+                    blobNames.Add(blob.Name);
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Something went wrong communicating with the Azure Blob: " + e.InnerException.Message);
             }
 
-            return items;
-        }
-
-        private bool IsValidDateTimeString(string datetime)
-        {
-            DateTime result = new DateTime();
-            if (!DateTime.TryParseExact(datetime, "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out result))
-                return false;
-
-            return true;
+            return blobNames;
         }
     }
 }
