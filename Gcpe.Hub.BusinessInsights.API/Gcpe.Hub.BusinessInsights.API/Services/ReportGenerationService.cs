@@ -38,7 +38,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             { "Dec", 12 },
         };
 
-        public TranslationReportDto GenerateMonthlyReport(List<NewsReleaseWithUrls> items)
+        public TranslationReportDto GenerateMonthlyReport(List<NewsReleaseItem> items)
         {
             var pdfCount = 0;
             foreach (var item in items)
@@ -53,7 +53,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
             foreach (var item in items)
             {
-                var ministry = item.NewsRelease.Ministry;
+                var ministry = item.Ministry;
                 if (!ministryFrequency.ContainsKey(ministry))
                 {
                     ministryFrequency.Add(ministry, item.Urls.Count());
@@ -137,17 +137,17 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
             var report = new TranslationReportDto
             {
-                MonthName = items.FirstOrDefault().NewsRelease.PublishDateTime.ToString("MMMM"),
-                Year = items.FirstOrDefault().NewsRelease.PublishDateTime.Year.ToString(),
+                MonthName = items.FirstOrDefault().PublishDateTime.ToString("MMMM"),
+                Year = items.FirstOrDefault().PublishDateTime.Year.ToString(),
                 NewsReleaseVolumeByMonth = items.Count,
-                Translations = items.OrderBy(i => i.NewsRelease.Key)
+                Translations = items.OrderBy(i => i.Key)
                 .Select(i => new Translation
                 {
-                    Key = i.NewsRelease.Key,
+                    Key = i.Key,
                     Headline = i.Headline ?? "",
-                    Ministry = i.NewsRelease.Ministry,
-                    PublishDateTime = i.NewsRelease.PublishDateTime,
-                    ReleaseType = i.NewsRelease.ReleaseType,
+                    Ministry = i.Ministry,
+                    PublishDateTime = i.PublishDateTime,
+                    ReleaseType = i.ReleaseType,
                     Urls = i.Urls.Select(u => u.Href).ToList()
                 }),
                 TranslationsVolumeByMonth = pdfCount,
@@ -159,9 +159,9 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             return report;
         }
 
-        public RollupReportDto GenerateRollupReport(List<NewsReleaseWithUrls> items)
+        public RollupReportDto GenerateRollupReport(List<NewsReleaseItem> items)
         {
-            var dates = items.Select(i => i.NewsRelease.PublishDateTime).Select(d => new { d.Month, d.Year }).Distinct().ToList();
+            var dates = items.Select(i => i.PublishDateTime).Select(d => new { d.Month, d.Year }).Distinct().ToList();
 
             var dateRanges = dates.Select(d => new
             {
@@ -175,8 +175,8 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             foreach (var range in dateRanges)
             {
                 var itemsInRange = items
-                    .Where(i => i.NewsRelease.PublishDateTime >= DateTimeOffset.Parse(range.start)
-                        && i.NewsRelease.PublishDateTime <= DateTimeOffset.Parse(range.end)).ToList();
+                    .Where(i => i.PublishDateTime >= DateTimeOffset.Parse(range.start)
+                        && i.PublishDateTime <= DateTimeOffset.Parse(range.end)).ToList();
 
                 var month = $"{range.month}-{range.year % 100}";
 
@@ -216,7 +216,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
             foreach (var item in items)
             {
-                var ministry = item.NewsRelease.Ministry;
+                var ministry = item.Ministry;
                 if (!ministryFrequency.ContainsKey(ministry))
                 {
                     ministryFrequency.Add(ministry, item.Urls.Count());
@@ -296,7 +296,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             var report = new RollupReportDto
             {
                 monthsWithPdfCounts = monthsWithPdfCounts,
-                Year = items.FirstOrDefault().NewsRelease.PublishDateTime.Year.ToString(),
+                Year = items.FirstOrDefault().PublishDateTime.Year.ToString(),
                 NewsReleaseVolumeByMonth = items.Count(),
                 TranslationsVolumeByMonth = pdfCount,
                 ReleasesTranslatedByMinistry = ministryFrequencyResults.OrderByDescending(i => i.Count),

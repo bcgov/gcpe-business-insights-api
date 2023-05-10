@@ -20,8 +20,8 @@ namespace Gcpe.Hub.BusinessInsights.API
                 var loggerFactory = services.GetRequiredService<ILoggerFactory>();
                 try
                 {
-                    var context = services.GetRequiredService<LocalDbContext>();
-                    await context.Database.MigrateAsync();
+                    // var context = services.GetRequiredService<LocalDbContext>();
+                    // await context.Database.MigrateAsync();
                 }
                 catch (Exception ex)
                 {
