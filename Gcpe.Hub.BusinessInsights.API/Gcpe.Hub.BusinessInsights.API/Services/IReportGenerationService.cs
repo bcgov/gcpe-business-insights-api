@@ -6,7 +6,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 {
     public interface IReportGenerationService
     {
-        public TranslationReportDto GenerateMonthlyReport(List<NewsReleaseItem> items);
+        public TranslationReportDto GenerateMonthlyReport(List<NewsReleaseItem> items, List<string> allMinistries);
         public RollupReportDto GenerateRollupReport(List<NewsReleaseItem> items);
     }
 }

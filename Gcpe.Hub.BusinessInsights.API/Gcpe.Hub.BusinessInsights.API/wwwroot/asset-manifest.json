@@ -1,20 +1,20 @@
 {
   "files": {
-    "main.css": "/static/css/main.a937feb1.css",
-    "main.js": "/static/js/main.c038d2e4.js",
+    "main.css": "/static/css/main.6bb5a3fc.css",
+    "main.js": "/static/js/main.4beaa716.js",
     "static/js/787.ca1ac101.chunk.js": "/static/js/787.ca1ac101.chunk.js",
-    "static/media/BCSans-Bold.woff": "/static/media/BCSans-Bold.252ecf87ea37c93b293c.woff",
-    "static/media/BCSans-BoldItalic.woff": "/static/media/BCSans-BoldItalic.73ed5137b2c4a42b754f.woff",
-    "static/media/BCSans-Italic.woff": "/static/media/BCSans-Italic.9c3be03a06d30a6ecff0.woff",
-    "static/media/BCSans-Regular.woff": "/static/media/BCSans-Regular.0079ea8e42d4e81a13d2.woff",
+    "static/media/BCSans-Regular.woff2": "/static/media/BCSans-Regular.907e1e3d9ed599095d49.woff2",
+    "static/media/BCSans-BoldItalic.woff2": "/static/media/BCSans-BoldItalic.bc56fa27e856aec204df.woff2",
+    "static/media/BCSans-Bold.woff2": "/static/media/BCSans-Bold.8f6d33daf96396e5b815.woff2",
+    "static/media/BCSans-Italic.woff2": "/static/media/BCSans-Italic.035a3cc8cebbad26dd01.woff2",
     "static/media/logo.png": "/static/media/logo.8089f2e0e06765355a1c.png",
     "index.html": "/index.html",
-    "main.a937feb1.css.map": "/static/css/main.a937feb1.css.map",
-    "main.c038d2e4.js.map": "/static/js/main.c038d2e4.js.map",
+    "main.6bb5a3fc.css.map": "/static/css/main.6bb5a3fc.css.map",
+    "main.4beaa716.js.map": "/static/js/main.4beaa716.js.map",
     "787.ca1ac101.chunk.js.map": "/static/js/787.ca1ac101.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.a937feb1.css",
-    "static/js/main.c038d2e4.js"
+    "static/css/main.6bb5a3fc.css",
+    "static/js/main.4beaa716.js"
   ]
 }

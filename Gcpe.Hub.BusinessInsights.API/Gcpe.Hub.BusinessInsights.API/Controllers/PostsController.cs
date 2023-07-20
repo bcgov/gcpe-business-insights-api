@@ -13,6 +13,8 @@ using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs;
 using Azure;
 using Url = Gcpe.Hub.BusinessInsights.API.Models.Url;
+using Gcpe.Hub.BusinessInsights.API.DbContexts;
+using Microsoft.EntityFrameworkCore;
 
 namespace Gcpe.Hub.BusinessInsights.API.Controllers
 {
@@ -24,43 +26,48 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
         private readonly ILogger _logger;
         private readonly IReportGenerationService _reportGenerationService;
         private readonly IConfiguration _config;
+        private readonly LocalBusinessInsightsDbContext _localContext;
+
         public PostsController(
             IHubBusinessInsightsRepository hubBusinessInsightsRepository,
             IConfiguration config,
             ILogger logger,
-            IReportGenerationService reportGenerationService)
+            IReportGenerationService reportGenerationService,
+            LocalBusinessInsightsDbContext localContext)
         {
             _hubBusinessInsightsRepository = hubBusinessInsightsRepository ?? throw new ArgumentNullException(nameof(hubBusinessInsightsRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _reportGenerationService = reportGenerationService ?? throw new ArgumentNullException(nameof(reportGenerationService));
             _config = config ?? throw new ArgumentNullException(nameof(_config));
+            _localContext = localContext ?? throw new ArgumentNullException(nameof(localContext));
         }
 
+        // leaving this here in case we need a rollup report in the future, but currently unused
         [HttpGet("rollup")]
         public async Task<ActionResult<RollupReportDto>> GetTotals()
         {
-            var newsReleaseEntities = await _hubBusinessInsightsRepository.GetAllNewsReleasesAsync();
-            newsReleaseEntities = newsReleaseEntities.Where(release => release.PublishDateTime.Year == DateTimeOffset.Now.Year);
-            var items = newsReleaseEntities.Select(r => new NewsReleaseItem
-            {
-                Key = r.Key,
-                Ministry = r.Ministry,
-                PublishDateTime = r.PublishDateTime,
-                ReleaseType = r.ReleaseType
-            });
+            //var newsReleaseEntities = await _hubBusinessInsightsRepository.GetAllNewsReleasesAsync();
+            //newsReleaseEntities = newsReleaseEntities.Where(release => release.PublishDateTime.Year == DateTimeOffset.Now.Year);
+            //var items = newsReleaseEntities.Select(r => new NewsReleaseItem
+            //{
+            //    Key = r.Key,
+            //    Ministry = r.Ministry,
+            //    PublishDateTime = r.PublishDateTime,
+            //    ReleaseType = r.ReleaseType
+            //});
 
-            var releaseItems = items.ToList();
-            foreach (var release in releaseItems)
-            {
-                var urls = await GetBlobs(release.Key, release.ReleaseType, release.PublishDateTime);
-                foreach (var url in urls)
-                {
-                    var u = new Url { Href = $"{_config["AzureTranslationsUrl"]}{url}", PublishDateTime = release.PublishDateTime };
-                    release.Urls.Add(u);
-                }
-            }
-
-            releaseItems = releaseItems.Where(i => i.Urls.Any()).ToList();
+            //var releaseItems = items.ToList();
+            //foreach (var release in releaseItems)
+            //{
+            //    var urls = await GetBlobs(release.Key, release.ReleaseType, release.PublishDateTime);
+            //    foreach (var url in urls)
+            //    {
+            //        var u = new Url { Href = $"{_config["AzureTranslationsUrl"]}{url}", PublishDateTime = release.PublishDateTime };
+            //        release.Urls.Add(u);
+            //    }
+            //}
+            var releaseItems = _localContext.NewsReleaseItems.Include(u => u.Urls).ToList();
+            // releaseItems = releaseItems.Where(i => i.Urls.Any()).ToList();
             var report = _reportGenerationService.GenerateRollupReport(releaseItems);
             return Ok(report);
         }
@@ -87,9 +94,10 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
                     release.Urls.Add(u);
                 }
             }
+            releaseItems = releaseItems.Where(i => i.Urls.Count > 0).ToList();
             await GetHeadlines(releaseItems);
 
-            var report = _reportGenerationService.GenerateMonthlyReport(releaseItems);
+            var report = _reportGenerationService.GenerateMonthlyReport(releaseItems, await _hubBusinessInsightsRepository.GetAllMinistriesAsync());
             return Ok(report);
         }
 
@@ -122,9 +130,11 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
                     release.Urls.Add(u);
                 }
             }
+            releaseItems = releaseItems.Where(i => i.Urls.Count > 0).ToList();
+            
             await GetHeadlines(releaseItems);
 
-            var report = _reportGenerationService.GenerateMonthlyReport(releaseItems);
+            var report = _reportGenerationService.GenerateMonthlyReport(releaseItems, await _hubBusinessInsightsRepository.GetAllMinistriesAsync());
             return Ok(report);
         }
 
@@ -139,29 +149,20 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
         }
 
         [HttpGet("translations/history")]
-        public async Task<ActionResult<TranslationReportDto>> GetHistory()
+        public ActionResult GetHistory()
         {
-            var newsReleaseEntities = await _hubBusinessInsightsRepository.GetNewsReleasesAsync(); // no args returns the previous month
-            var items = newsReleaseEntities.Select(r => new NewsReleaseItem
-            {
-                Key = r.Key,
-                Ministry = r.Ministry,
-                PublishDateTime = r.PublishDateTime,
-                ReleaseType = r.ReleaseType
-            });
+            int startingYear = 2021;
+            int currentYear = DateTime.Now.Year;
+            int numberOfMonths = (currentYear - startingYear + 1) * 12;
 
-            var releaseItems = items.ToList();
-            foreach (var release in releaseItems)
-            {
-                var urls = await GetBlobs(release.Key, release.ReleaseType, release.PublishDateTime);
-                foreach (var url in urls)
+            var history = Enumerable.Range(0, numberOfMonths)
+                .Select(i => new DateCollection
                 {
-                    var u = new Url { Href = $"{_config["AzureTranslationsUrl"]}{url}", PublishDateTime = release.PublishDateTime };
-                    release.Urls.Add(u);
-                }
-            }
+                    Month = DateTime.Now.AddMonths(i).Month,
+                    Year = startingYear + (i / 12)
+                })
+                .ToList();
 
-            var history = releaseItems.Where(nr => nr.Urls.Any()).Select(nr => nr.PublishDateTime).Select(d => new { d.Month, d.Year }).Distinct().ToList();
             var dates = history.Select(d => new
             {
                 month = new DateTime(d.Year, d.Month, 1).ToString("MMMM", CultureInfo.InvariantCulture),
@@ -175,7 +176,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
                 .GroupBy(d => d.year)
                 .ToDictionary(
                     g => g.Key,
-                    g => g.OrderBy(d => DateTime.ParseExact(d.month, "MMMM", CultureInfo.InvariantCulture).Month).ThenBy(d => d.month).ToList()
+                    g => g.OrderByDescending(d => DateTime.ParseExact(d.month, "MMMM", CultureInfo.InvariantCulture).Month).ThenBy(d => d.month).ToList()
                 );
             return Ok(groupedDates);
         }
@@ -188,7 +189,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
                 BlobServiceClient blobServiceClient = new BlobServiceClient(_config["CloudAccountConnectionString"]);
                 BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient("translations");
                 var parentDir = "releases";
-                if (releaseType == 3) parentDir = "factsheets";
+                // if (releaseType == 3) parentDir = "factsheets";
                 AsyncPageable<BlobItem> blobs = containerClient.GetBlobsAsync(prefix: $"{parentDir}/{releaseId}");
 
                 await foreach (var blob in blobs)
