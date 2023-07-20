@@ -12,10 +12,10 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
     {
         private readonly List<string> _allLanguages = new List<string>()
         {
-            "Arabic", "Chinese(traditional)", "Chinese(simplified)", "Farsi", "French", "Hebrew", "Hindi", "Indonesian", "Japanese", "Korean", "Punjabi", "Somali", "Spanish", "Swahili", "Tagalog", "Ukrainian", "Urdu", "Vietnamese"
+            "Arabic", "Chinese(simplified)", "Chinese(traditional)", "Dutch", "Farsi", "Finnish", "French", "Gujarati", "Hebrew", "Hindi", "Indonesian", "Japanese", "Korean", "Portuguese", "Punjabi", "Russian", "Somali", "Spanish", "Swahili", "Tagalog", "Ukrainian", "Urdu", "Vietnamese"
         };
 
-        private readonly string _languages = @"Arabic|Chinese\(traditional\)|Chinese\(simplified\)|Chinese_Simplified|Chinese_Traditional|Farsi|French|Hebrew|Hindi|Indonesian|Japanese|Korean|Punjabi|Somali|Spanish|Swahili|Tagalog|Ukrainian|Urdu|Vietnamese";
+        private readonly string _languages = @"Arabic|Chinese\(traditional\)|Chinese\(simplified\)|Chinese_Simplified|Chinese_Traditional|Dutch|Farsi|Finnish|French|Gujarati|Hebrew|Hindi|Indonesian|Japanese|Korean|Portuguese|Punjabi|Russian|Somali|Spanish|Swahili|Tagalog|Ukrainian|Urdu|Vietnamese";
 
         public List<string> AllLanguages
         {
@@ -38,8 +38,11 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             { "Dec", 12 },
         };
 
-        public TranslationReportDto GenerateMonthlyReport(List<NewsReleaseItem> items)
+        public TranslationReportDto GenerateMonthlyReport(List<NewsReleaseItem> items, List<string> allMinistries)
         {
+            var month = items.LastOrDefault().PublishDateTime.ToString("MMMM");
+            items = items.Where(i => i.PublishDateTime.ToString("MMMM") == month).ToList();
+
             var pdfCount = 0;
             foreach (var item in items)
             {
@@ -51,9 +54,11 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
             var ministryFrequency = new Dictionary<string, int>();
 
+            var ministries = new List<string>();
             foreach (var item in items)
             {
                 var ministry = item.Ministry;
+                ministries.Add(ministry);
                 if (!ministryFrequency.ContainsKey(ministry))
                 {
                     ministryFrequency.Add(ministry, item.Urls.Count());
@@ -132,15 +137,17 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             }
 
             var noLanguageResults = _allLanguages.Except(languages);
-
             noLanguageResults.ToList().ForEach(l => languageFrequencyResults.Add(new TranslationReportDto.LanguageFrequencyItem { Language = l, Count = 0 }));
+
+            var noMinistryResults = allMinistries.Except(ministries);
+            noMinistryResults.ToList().ForEach(m => ministryFrequencyResults.Add(new TranslationReportDto.MinistryFrequencyItem { Ministry = m, Count = 0 }));
 
             var report = new TranslationReportDto
             {
-                MonthName = items.FirstOrDefault().PublishDateTime.ToString("MMMM"),
-                Year = items.FirstOrDefault().PublishDateTime.Year.ToString(),
+                MonthName = items.LastOrDefault().PublishDateTime.ToString("MMMM"),
+                Year = items.LastOrDefault().PublishDateTime.Year.ToString(),
                 NewsReleaseVolumeByMonth = items.Count,
-                Translations = items.OrderBy(i => i.Key)
+                Translations = items.OrderBy(i => i.PublishDateTime)
                 .Select(i => new Translation
                 {
                     Key = i.Key,

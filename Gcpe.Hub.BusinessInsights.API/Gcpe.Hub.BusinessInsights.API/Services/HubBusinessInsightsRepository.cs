@@ -1,23 +1,22 @@
 ﻿using Gcpe.Hub.BusinessInsights.API.DbContexts;
 using Gcpe.Hub.BusinessInsights.API.Entities;
 using Gcpe.Hub.BusinessInsights.API.Guards;
-using Gcpe.Hub.Data.Entity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using Microsoft.FSharp.Core;
-using ScrapySharp.Html;
 using System;
 using System.Collections.Generic;
-using System.Reflection.Metadata;
+using System.Linq;
 using System.Threading.Tasks;
-using static Microsoft.EntityFrameworkCore.Internal.AsyncLock;
-using static ScrapySharp.Core.Token;
 
 namespace Gcpe.Hub.BusinessInsights.API.Services
 {
     public class HubBusinessInsightsRepository : IHubBusinessInsightsRepository
     {
         private readonly HubBusinessInsightsDbContext _dbContext;
+
+        private List<string> excludedMinistries = new List<string>
+        {
+            "GCPE HQ", "Environmental Assessment Office", "GCPE Media Relations", "BC Coroners Service", "Minister of State for Child Care", "Minister of State for Infrastructure and Transit", "Minister of State for Trade", "Minister of State for Workforce Development"
+        };
 
         public HubBusinessInsightsRepository(
             HubBusinessInsightsDbContext dbContext)
@@ -47,12 +46,15 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                     where (BodyHtml like '%translation%' or BodyHtml like '%translations%')
                     or (Subheadline like '%translation%' or Subheadline like '%translations%')))
                 and (nr.PublishDateTime >= '{startDate}' and nr.PublishDateTime <= '{endDate}' )
+                and nr.IsActive = 1
 
                 UNION
 
                 select (select DisplayName from [Gcpe.Hub].dbo.Ministry where Id = MinistryId) as ministry, [Key], PublishDateTime, ReleaseType from [Gcpe.Hub].dbo.NewsRelease nr
                 where HasTranslations = 1
                 and (nr.PublishDateTime >= '{startDate}' and nr.PublishDateTime <= '{endDate}' )
+                and nr.IsActive = 1
+                and releaseType = 1
                 ) t
                 ORDER BY PublishDateTime
             ").ToListAsync();
@@ -86,12 +88,14 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                     where (BodyHtml like '%translation%' or BodyHtml like '%translations%')
                     or (Subheadline like '%translation%' or Subheadline like '%translations%')))
                 and (nr.PublishDateTime >= '{startDate}' and nr.PublishDateTime <= '{endDate}' )
+                and releaseType = 1
 
                 UNION
 
                 select (select DisplayName from [Gcpe.Hub].dbo.Ministry where Id = MinistryId) as ministry, [Key], PublishDateTime, ReleaseType from [Gcpe.Hub].dbo.NewsRelease nr
                 where HasTranslations = 1
                 and (nr.PublishDateTime >= '{startDate}' and nr.PublishDateTime <= '{endDate}' )
+                and releaseType = 1
                 ) t
                 ORDER BY PublishDateTime
             ").ToListAsync();
@@ -101,7 +105,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
         public async Task<IEnumerable<NewsReleaseEntity>> GetAllNewsReleasesAsync()
         {
-            var newsReleaseEntities = await _dbContext.NewsReleaseEntities.FromSqlRaw(@$"
+            var newsReleaseEntities = await _dbContext.NewsReleaseEntities.FromSqlRaw(@"
                 SELECT  * 
                 FROM (
                 select (select DisplayName from [Gcpe.Hub].dbo.Ministry where Id = MinistryId) as ministry, [Key], PublishDateTime, ReleaseType from [Gcpe.Hub].dbo.NewsRelease nr
@@ -118,6 +122,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
                 select (select DisplayName from [Gcpe.Hub].dbo.Ministry where Id = MinistryId) as ministry, [Key], PublishDateTime, ReleaseType from [Gcpe.Hub].dbo.NewsRelease nr
                 where HasTranslations = 1
+                and releaseType = 1
                 ) t
                 ORDER BY PublishDateTime
             ").ToListAsync();
@@ -127,18 +132,6 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
         public async Task<IEnumerable<NewsReleaseEntity>> GetNewsReleasesInDateRangeAsync(string startDate = "", string endDate = "")
         {
-            // DateGuard.ThrowIfNullOrWhitespace(startDate, endDate);
-            // DateGuard.ThrowIfNullOrEmpty(endDate, startDate);
-
-            // var start = DateTimeOffset.Parse(startDate);
-            // var end = DateTimeOffset.Parse(endDate);
-
-            // DateGuard.ThrowIfEndIsBeforeStart(start, end);
-            // DateGuard.ThrowIfStartAndEndAreEqual(start, end);
-            // DateGuard.ThrowIfNotFirstOfTheMonth(start, end);
-            // DateGuard.ThrowIfDateRangeNotOneMonth(start, end);
-
-
             return await _dbContext.NewsReleaseEntities
             .FromSqlRaw(@$"SELECT *
                             FROM(
@@ -151,13 +144,17 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                                     from[Gcpe.Hub].dbo.NewsReleaseDocumentLanguage nrdl
                                     where(BodyHtml like '%translation%' or BodyHtml like '%translations%')
                                     or(Subheadline like '%translation%' or Subheadline like '%translations%')))
-                                and(nr.PublishDateTime >= '{startDate}' and nr.PublishDateTime <= '{endDate}')
+                                and(nr.PublishDateTime >= '{startDate}' and nr.PublishDateTime < '{endDate}T00:00:00-07:00')
+                                and nr.IsActive = 1
+                                and releaseType = 1
 
                                 UNION
 
                                 select(select DisplayName from[Gcpe.Hub].dbo.Ministry where Id = MinistryId) as ministry, [Key], PublishDateTime, ReleaseType from[Gcpe.Hub].dbo.NewsRelease nr
                                 where HasTranslations = 1
-                                and(nr.PublishDateTime >= '{startDate}' and nr.PublishDateTime <= '{endDate}')
+                                and(nr.PublishDateTime >= '{startDate}' and nr.PublishDateTime < '{endDate}T00:00:00-07:00')
+                                and nr.IsActive = 1
+                                and releaseType = 1
                                 ) t
                                 ORDER BY PublishDateTime")
                 .ToListAsync();
@@ -179,6 +176,12 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
         {
             var nrdl = await _dbContext.NewsReleaseDocumentLanguage.FirstOrDefaultAsync(nrdl => nrdl.DocumentId == Guid.Parse(documentId));
             return nrdl.Headline ?? "";
+        }
+
+        public async Task<List<string>> GetAllMinistriesAsync()
+        {
+            var allMinistries = await _dbContext.Ministry.Where(m => m.IsActive).Select(m => m.DisplayName).ToListAsync();
+            return allMinistries.Except(excludedMinistries).ToList();
         }
 
         private string FormatDateTime(DateTime dateTime) => dateTime.ToString("yyyy-MM-dd");

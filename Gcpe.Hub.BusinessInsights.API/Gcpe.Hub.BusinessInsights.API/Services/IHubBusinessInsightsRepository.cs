@@ -13,5 +13,6 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
         Task<string> GetGuidForNewsRelease(string key);
         Task<string> GetDocumentIdForNewsRelease(string newsReleaseId);
         Task<string> GetHeadlineForNewsRelease(string documentId);
+        Task<List<string>> GetAllMinistriesAsync();
     }
 }

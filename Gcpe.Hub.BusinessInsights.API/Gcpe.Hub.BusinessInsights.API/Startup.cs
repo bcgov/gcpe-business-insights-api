@@ -40,6 +40,7 @@ namespace Gcpe.Hub.BusinessInsights.API
 
             services.AddDbContext<HubDbContext>(options => options.UseSqlServer(hubDbConnectionString));
             services.AddDbContext<HubBusinessInsightsDbContext>(options => options.UseSqlServer(hubDbConnectionString));
+            services.AddDbContext<LocalBusinessInsightsDbContext>(options => options.UseSqlite("Data Source=LocalData.db;"));
 
             services.AddHealthChecks()
                 .AddDbContextCheck<HubBusinessInsightsDbContext>()
