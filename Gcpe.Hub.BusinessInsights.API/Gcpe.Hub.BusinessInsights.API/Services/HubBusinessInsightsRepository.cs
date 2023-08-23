@@ -15,7 +15,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
         private List<string> excludedMinistries = new List<string>
         {
-            "GCPE HQ", "Environmental Assessment Office", "GCPE Media Relations", "BC Coroners Service", "Minister of State for Child Care", "Minister of State for Infrastructure and Transit", "Minister of State for Trade", "Minister of State for Workforce Development"
+            "GCPE HQ", "Environmental Assessment Office", "GCPE Media Relations", "BC Coroners Service", "Minister of State for Child Care", "Minister of State for Infrastructure and Transit", "Minister of State for Trade", "Minister of State for Workforce Development", "Joint Information Centre", "Joint Information Centre - Drought", "Joint Information Centre - Wildfires"
         };
 
         public HubBusinessInsightsRepository(
@@ -146,6 +146,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                                     or(Subheadline like '%translation%' or Subheadline like '%translations%')))
                                 and(nr.PublishDateTime >= '{startDate}' and nr.PublishDateTime < '{endDate}T00:00:00-07:00')
                                 and nr.IsActive = 1
+                                and nr.IsPublished = 1
                                 and releaseType = 1
 
                                 UNION
@@ -154,6 +155,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                                 where HasTranslations = 1
                                 and(nr.PublishDateTime >= '{startDate}' and nr.PublishDateTime < '{endDate}T00:00:00-07:00')
                                 and nr.IsActive = 1
+                                and nr.IsPublished = 1
                                 and releaseType = 1
                                 ) t
                                 ORDER BY PublishDateTime")

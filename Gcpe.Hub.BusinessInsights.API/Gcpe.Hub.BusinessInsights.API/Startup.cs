@@ -4,12 +4,12 @@ using Gcpe.Hub.Data.Entity;
 using Hellang.Middleware.ProblemDetails;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Server.IISIntegration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Identity.Web;
 using Microsoft.OpenApi.Models;
 using Newtonsoft.Json;
 using System;
@@ -54,7 +54,8 @@ namespace Gcpe.Hub.BusinessInsights.API
                     name: "hubDbConnection"
             );
 
-            services.AddMicrosoftIdentityWebApiAuthentication(Configuration);
+            //services.AddMicrosoftIdentityWebApiAuthentication(Configuration);
+            //services.AddAuthentication(IISDefaults.AuthenticationScheme);
 
             services.AddControllers().AddNewtonsoftJson(options =>
                 options.SerializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore);
@@ -63,12 +64,17 @@ namespace Gcpe.Hub.BusinessInsights.API
 
             services.AddScoped<IReportGenerationService, ReportGenerationService>();
 
-            services.AddCors(o => o.AddPolicy("MyPolicy", builder =>
-            {
-                builder.WithOrigins("http://localhost:3000")
-                       .AllowAnyMethod()
-                       .AllowAnyHeader();
-            }));
+            //services.AddCors(o => o.AddPolicy("MyPolicy", builder =>
+            //{
+            //    builder.WithOrigins(
+            //        "http://localhost:3000",
+            //        "https://dev.insights.hub.gcpe.gov.bc.ca",
+            //        "https://test.insights.hub.gcpe.gov.bc.ca",
+            //        "https://insights.hub.gcpe.gov.bc.ca")
+            //           .AllowAnyMethod()
+            //           .AllowAnyHeader()
+            //           .AllowCredentials();
+            //}));
 
             services.AddTransient<ILogger>(s => s.GetRequiredService<ILogger<Program>>());
 
@@ -95,7 +101,7 @@ namespace Gcpe.Hub.BusinessInsights.API
 
             app.UseProblemDetails();
 
-            app.UseCors("MyPolicy");
+            // app.UseCors("MyPolicy");
 
             app.UseHttpsRedirection();
             app.UseFileServer();
