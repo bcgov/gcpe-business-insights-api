@@ -38,7 +38,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
             { "Dec", 12 },
         };
 
-        public TranslationReportDto GenerateMonthlyReport(List<NewsReleaseItem> items, List<string> allMinistries)
+        public TranslationReportDto GenerateMonthlyReport(List<NewsReleaseItem> items, List<string> allMinistries, string environmentName)
         {
             var month = items.LastOrDefault().PublishDateTime.ToString("MMMM");
             items = items.Where(i => i.PublishDateTime.ToString("MMMM") == month).ToList();
@@ -97,9 +97,18 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                     MatchCollection mc
                     = Regex.Matches(doc.Href, _languages);
 
-                    foreach (Match m in mc)
+                    if (mc.Count > 1)
                     {
-                        languages.Add(m.ToString());
+                        // Add only the last match
+                        languages.Add(mc[mc.Count - 1].ToString());
+                    }
+                    else
+                    {
+                        // Add all matches if there's only one or zero
+                        foreach (Match m in mc)
+                        {
+                            languages.Add(m.ToString());
+                        }
                     }
 
                 }
@@ -160,7 +169,8 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
                 TranslationsVolumeByMonth = pdfCount,
                 ReleasesTranslatedByMinistry = ministryFrequencyResults.OrderByDescending(i => i.Count),
                 LanguageCounts = languageFrequencyResults.OrderByDescending(i => i.Count),
-                MinistryTranslationsVolume = ministryFrequencyResults.Select(c => c.Count).Sum()
+                MinistryTranslationsVolume = ministryFrequencyResults.Select(c => c.Count).Sum(),
+                EnvironmentName = environmentName, 
             };
 
             return report;
