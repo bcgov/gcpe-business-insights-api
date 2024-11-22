@@ -15,7 +15,23 @@ namespace Gcpe.Hub.BusinessInsights.API.Services
 
         private List<string> excludedMinistries = new List<string>
         {
-            "GCPE HQ", "Environmental Assessment Office", "GCPE Media Relations", "BC Coroners Service", "Minister of State for Child Care", "Minister of State for Infrastructure and Transit", "Minister of State for Trade", "Minister of State for Workforce Development", "Joint Information Centre", "Joint Information Centre - Drought", "Joint Information Centre - Wildfires"
+            "GCPE HQ", 
+            "Environmental Assessment Office",
+            "GCPE Media Relations",
+            "BC Coroners Service",
+            "Minister of State for Child Care",
+            "Minister of State for Infrastructure and Transit",
+            "Minister of State for Trade",
+            "Minister of State for Workforce Development",
+            "Joint Information Centre",
+            "Joint Information Centre - Drought",
+            "Joint Information Centre - Wildfires",
+            "BC Wildfire Service",
+            "Citizen Engagement",
+            "Minister of State for Sustainable Forestry Innovation",
+            "Minister of State for Child Care and Children and Youth with Support Needs",
+            "Minister of State for Community Safety and Integrated Services",
+            "Minister of State for Local Governments and Rural Communities"
         };
 
         public HubBusinessInsightsRepository(

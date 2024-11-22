@@ -15,6 +15,7 @@ using Azure;
 using Url = Gcpe.Hub.BusinessInsights.API.Models.Url;
 using Gcpe.Hub.BusinessInsights.API.DbContexts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Hosting;
 
 namespace Gcpe.Hub.BusinessInsights.API.Controllers
 {
@@ -27,19 +28,22 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
         private readonly IReportGenerationService _reportGenerationService;
         private readonly IConfiguration _config;
         private readonly LocalBusinessInsightsDbContext _localContext;
+		private readonly IWebHostEnvironment _env;
 
-        public PostsController(
+		public PostsController(
             IHubBusinessInsightsRepository hubBusinessInsightsRepository,
             IConfiguration config,
             ILogger logger,
             IReportGenerationService reportGenerationService,
-            LocalBusinessInsightsDbContext localContext)
+            LocalBusinessInsightsDbContext localContext,
+            IWebHostEnvironment env)
         {
             _hubBusinessInsightsRepository = hubBusinessInsightsRepository ?? throw new ArgumentNullException(nameof(hubBusinessInsightsRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _reportGenerationService = reportGenerationService ?? throw new ArgumentNullException(nameof(reportGenerationService));
             _config = config ?? throw new ArgumentNullException(nameof(_config));
             _localContext = localContext ?? throw new ArgumentNullException(nameof(localContext));
+            _env = env ?? throw new ArgumentNullException(nameof(env));
         }
 
         // leaving this here in case we need a rollup report in the future, but currently unused
@@ -97,7 +101,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
             releaseItems = releaseItems.Where(i => i.Urls.Count > 0).ToList();
             await GetHeadlines(releaseItems);
 
-            var report = _reportGenerationService.GenerateMonthlyReport(releaseItems, await _hubBusinessInsightsRepository.GetAllMinistriesAsync());
+            var report = _reportGenerationService.GenerateMonthlyReport(releaseItems, await _hubBusinessInsightsRepository.GetAllMinistriesAsync(), _env.EnvironmentName);
             return Ok(report);
         }
 
@@ -134,7 +138,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
             
             await GetHeadlines(releaseItems);
 
-            var report = _reportGenerationService.GenerateMonthlyReport(releaseItems, await _hubBusinessInsightsRepository.GetAllMinistriesAsync());
+            var report = _reportGenerationService.GenerateMonthlyReport(releaseItems, await _hubBusinessInsightsRepository.GetAllMinistriesAsync(), _env.EnvironmentName);
             return Ok(report);
         }
 
@@ -181,7 +185,7 @@ namespace Gcpe.Hub.BusinessInsights.API.Controllers
             return Ok(groupedDates);
         }
 
-        private async Task<List<string>> GetBlobs(string releaseId, int releaseType, DateTimeOffset publishDateTime)
+		private async Task<List<string>> GetBlobs(string releaseId, int releaseType, DateTimeOffset publishDateTime)
         {
             var blobNames = new List<string>();
             try
